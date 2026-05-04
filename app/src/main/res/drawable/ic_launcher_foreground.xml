@@ -1,30 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M31,63.928c0,0 6.4,-11 12.1,-13.1c7.2,-2.6 26,-1.4 26,-1.4l38.1,38.1L107,108.928l-32,-1L31,63.928z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="85.84757"
-                android:endY="92.4963"
-                android:startX="42.9492"
-                android:startY="49.59793"
-                android:type="linear">
-                <item
-                    android:color="#44000000"
-                    android:offset="0.0" />
-                <item
-                    android:color="#00000000"
-                    android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
+
+    <!-- Left page -->
     <path
         android:fillColor="#FFFFFF"
-        android:fillType="nonZero"
-        android:pathData="M 25 75 L 25 45 L 45 30 L 65 45 L 65 75 L 25 75 Z M 35 75 L 35 55 L 55 55 L 55 75 Z"
-        android:strokeWidth="1"
-        android:strokeColor="#00000000" />
+        android:pathData="M24,32 L51,32 L51,78 L24,78 Z" />
+    <!-- Right page -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,32 L84,32 L84,78 L57,78 Z" />
+
+    <!-- Spine arc — open-book effect -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:pathData="M51,32 Q54,27 57,32" />
+
+    <!-- Left page header (amber) -->
+    <path
+        android:fillColor="#F9A825"
+        android:pathData="M24,32 L51,32 L51,43 L24,43 Z" />
+    <!-- Right page header (amber) -->
+    <path
+        android:fillColor="#F9A825"
+        android:pathData="M57,32 L84,32 L84,43 L57,43 Z" />
+
+    <!-- Left header: white title line -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:pathData="M28,37 L47,37" />
+    <!-- Right header: white title line -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:pathData="M61,37 L80,37" />
+
+    <!-- Left page: 4 horizontal ledger rows -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7986CB"
+        android:strokeWidth="2"
+        android:pathData="M28,51 L48,51 M28,59 L48,59 M28,67 L48,67 M28,75 L48,75" />
+    <!-- Left page: vertical column divider -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#9FA8DA"
+        android:strokeWidth="1.5"
+        android:pathData="M41,44 L41,78" />
+
+    <!-- Right page: bar chart base line -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#7986CB"
+        android:strokeWidth="2"
+        android:pathData="M59,73 L82,73" />
+    <!-- Bar 1 — short -->
+    <path
+        android:fillColor="#F9A825"
+        android:pathData="M60,67 L65,67 L65,73 L60,73 Z" />
+    <!-- Bar 2 — medium -->
+    <path
+        android:fillColor="#F9A825"
+        android:pathData="M67,56 L72,56 L72,73 L67,73 Z" />
+    <!-- Bar 3 — tall, reaches just below header -->
+    <path
+        android:fillColor="#F9A825"
+        android:pathData="M74,44 L79,44 L79,73 L74,73 Z" />
 </vector>
