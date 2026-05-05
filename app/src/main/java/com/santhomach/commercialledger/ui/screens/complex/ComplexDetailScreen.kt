@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.santhomach.commercialledger.CommercialLedgerApplication
+import com.santhomach.commercialledger.data.model.Expense
+import com.santhomach.commercialledger.data.model.RoomUnit
 import com.santhomach.commercialledger.data.model.TenancyStatus
 import com.santhomach.commercialledger.ui.components.DoorCard
 import com.santhomach.commercialledger.ui.components.formatAmount
@@ -50,7 +52,16 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
     val collectedMonth by vm.collectedThisMonth.collectAsState()
     val expenses by vm.complexExpenses.collectAsState()
 
+    val deleted by vm.deleted.collectAsState()
+    LaunchedEffect(deleted) { if (deleted) navController.popBackStack() }
+
     var showAddRoomDialog by remember { mutableStateOf(false) }
+    var showComplexMenu by remember { mutableStateOf(false) }
+    var showEditComplexDialog by remember { mutableStateOf(false) }
+    var showDeleteComplexDialog by remember { mutableStateOf(false) }
+    var roomToEdit by remember { mutableStateOf<RoomUnit?>(null) }
+    var roomToDelete by remember { mutableStateOf<RoomUnit?>(null) }
+    var expenseToDelete by remember { mutableStateOf<Expense?>(null) }
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
@@ -117,15 +128,27 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
                                     }
                                 }
                             }
-                            IconButton(
-                                onClick = { navController.navigate(Screen.ExpenseForm.createRoute(complexId)) }
-                            ) {
-                                Icon(
-                                    Icons.Default.AttachMoney,
-                                    contentDescription = "Add Expense",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                            Row {
+                                IconButton(onClick = { navController.navigate(Screen.ExpenseForm.createRoute(complexId)) }) {
+                                    Icon(Icons.Default.AttachMoney, contentDescription = "Add Expense", tint = Color.White, modifier = Modifier.size(28.dp))
+                                }
+                                Box {
+                                    IconButton(onClick = { showComplexMenu = true }) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White)
+                                    }
+                                    DropdownMenu(expanded = showComplexMenu, onDismissRequest = { showComplexMenu = false }) {
+                                        DropdownMenuItem(
+                                            text = { Text("Edit Complex") },
+                                            leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                            onClick = { showEditComplexDialog = true; showComplexMenu = false }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Delete Complex") },
+                                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                            onClick = { showDeleteComplexDialog = true; showComplexMenu = false }
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -244,7 +267,9 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
                             tenantName = null,
                             monthlyRent = tenancy?.monthlyRent ?: 0L,
                             onClick = { navController.navigate(Screen.DoorDetail.createRoute(room.id)) },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+                            onEdit = { roomToEdit = room },
+                            onDelete = { roomToDelete = room }
                         )
                     }
                 }
@@ -283,7 +308,7 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Box(
                                     modifier = Modifier
                                         .size(36.dp)
@@ -315,12 +340,26 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
                                     }
                                 }
                             }
-                            Text(
-                                formatAmount(expense.amount),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = ExpenseRed,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    formatAmount(expense.amount),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = ExpenseRed,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(
+                                    onClick = { navController.navigate(Screen.ExpenseForm.createRoute(complexId, 0L, expense.id)) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, null, tint = NeutralGray, modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(
+                                    onClick = { expenseToDelete = expense },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -338,6 +377,146 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
             }
         )
     }
+
+    if (showEditComplexDialog) {
+        complex?.let { c ->
+            EditComplexDialog(
+                name = c.name,
+                address = c.address,
+                description = c.description,
+                onDismiss = { showEditComplexDialog = false },
+                onConfirm = { name, address, description ->
+                    vm.updateComplex(name, address, description)
+                    showEditComplexDialog = false
+                }
+            )
+        }
+    }
+
+    if (showDeleteComplexDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteComplexDialog = false },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Complex") },
+            text = { Text("Delete \"${complex?.name}\"? All doors, tenancies, payments and expenses will be permanently removed.") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deleteComplex(); showDeleteComplexDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteComplexDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    roomToEdit?.let { room ->
+        EditRoomDialog(
+            room = room,
+            onDismiss = { roomToEdit = null },
+            onConfirm = { doorNumber, floor, description ->
+                vm.updateRoom(room.copy(doorNumber = doorNumber, floor = floor, description = description))
+                roomToEdit = null
+            }
+        )
+    }
+
+    roomToDelete?.let { room ->
+        AlertDialog(
+            onDismissRequest = { roomToDelete = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Door") },
+            text = { Text("Delete door \"${room.doorNumber}\"? All tenancies and expenses for this door will be removed.") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deleteRoom(room); roomToDelete = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { roomToDelete = null }) { Text("Cancel") } }
+        )
+    }
+
+    expenseToDelete?.let { expense ->
+        AlertDialog(
+            onDismissRequest = { expenseToDelete = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Expense") },
+            text = { Text("Delete this ${expense.category.ifBlank { "expense" }} of ${formatAmount(expense.amount)}?") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deleteExpense(expense); expenseToDelete = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { expenseToDelete = null }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun EditComplexDialog(
+    name: String,
+    address: String,
+    description: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var n by remember { mutableStateOf(name) }
+    var a by remember { mutableStateOf(address) }
+    var d by remember { mutableStateOf(description) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Edit, null, tint = Green800)
+                Spacer(Modifier.width(8.dp))
+                Text("Edit Complex")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(n, { n = it }, label = { Text("Complex Name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(a, { a = it }, label = { Text("Address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(d, { d = it }, label = { Text("Description") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            Button(onClick = { if (n.isNotBlank()) onConfirm(n.trim(), a.trim(), d.trim()) }, enabled = n.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun EditRoomDialog(
+    room: RoomUnit,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var doorNumber by remember { mutableStateOf(room.doorNumber) }
+    var floor by remember { mutableStateOf(room.floor) }
+    var description by remember { mutableStateOf(room.description) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Edit, null, tint = Green800)
+                Spacer(Modifier.width(8.dp))
+                Text("Edit Door")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(doorNumber, { doorNumber = it }, label = { Text("Door Number *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(floor, { floor = it }, label = { Text("Floor") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(description, { description = it }, label = { Text("Description") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            Button(onClick = { if (doorNumber.isNotBlank()) onConfirm(doorNumber.trim(), floor.trim(), description.trim()) }, enabled = doorNumber.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable

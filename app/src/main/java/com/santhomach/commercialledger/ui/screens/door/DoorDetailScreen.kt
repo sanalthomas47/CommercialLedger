@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.santhomach.commercialledger.CommercialLedgerApplication
+import com.santhomach.commercialledger.data.model.Expense
+import com.santhomach.commercialledger.data.model.RentPayment
+import com.santhomach.commercialledger.data.model.RoomUnit
 import com.santhomach.commercialledger.data.model.TenancyStatus
 import com.santhomach.commercialledger.ui.components.DatePickerField
 import com.santhomach.commercialledger.ui.components.TenancyStatusChip
@@ -52,8 +55,16 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
     val isProcessing by vm.isProcessing.collectAsState()
     val successMessage by vm.successMessage.collectAsState()
 
+    val deleted by vm.deleted.collectAsState()
+    LaunchedEffect(deleted) { if (deleted) navController.popBackStack() }
+
     var showPaymentSheet by remember { mutableStateOf(false) }
     var showCloseDialog by remember { mutableStateOf(false) }
+    var showEditRoomDialog by remember { mutableStateOf(false) }
+    var showDeleteRoomDialog by remember { mutableStateOf(false) }
+    var showRoomMenu by remember { mutableStateOf(false) }
+    var paymentToDelete by remember { mutableStateOf<RentPayment?>(null) }
+    var expenseToDelete by remember { mutableStateOf<Expense?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -94,6 +105,23 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                         navController.navigate(Screen.ExpenseForm.createRoute(room?.complexId ?: 0L, doorId))
                     }) {
                         Icon(Icons.Default.AttachMoney, "Add Expense")
+                    }
+                    Box {
+                        IconButton(onClick = { showRoomMenu = true }) {
+                            Icon(Icons.Default.MoreVert, "More options")
+                        }
+                        DropdownMenu(expanded = showRoomMenu, onDismissRequest = { showRoomMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Door") },
+                                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                onClick = { showEditRoomDialog = true; showRoomMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete Door") },
+                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = { showDeleteRoomDialog = true; showRoomMenu = false }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -254,7 +282,7 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Box(
                                     modifier = Modifier.size(40.dp).clip(CircleShape).background(Green50),
                                     contentAlignment = Alignment.Center
@@ -280,12 +308,20 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                                     )
                                 }
                             }
-                            Text(
-                                formatAmount(payment.amountPaid),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = IncomeGreen,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    formatAmount(payment.amountPaid),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = IncomeGreen,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(
+                                    onClick = { paymentToDelete = payment },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -306,7 +342,7 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Box(
                                     Modifier.size(40.dp).clip(CircleShape).background(Red600.copy(0.1f)),
                                     contentAlignment = Alignment.Center
@@ -319,7 +355,21 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                                     Text(expense.date, style = MaterialTheme.typography.bodySmall, color = NeutralGray)
                                 }
                             }
-                            Text(formatAmount(expense.amount), style = MaterialTheme.typography.titleMedium, color = ExpenseRed, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(formatAmount(expense.amount), style = MaterialTheme.typography.titleMedium, color = ExpenseRed, fontWeight = FontWeight.Bold)
+                                IconButton(
+                                    onClick = { navController.navigate(Screen.ExpenseForm.createRoute(expense.complexId, expense.roomId ?: 0L, expense.id)) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, null, tint = NeutralGray, modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(
+                                    onClick = { expenseToDelete = expense },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -348,6 +398,99 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
             }
         )
     }
+
+    if (showEditRoomDialog) {
+        room?.let { r ->
+            EditRoomDialog(
+                room = r,
+                onDismiss = { showEditRoomDialog = false },
+                onConfirm = { doorNumber, floor, description ->
+                    vm.updateRoom(doorNumber, floor, description)
+                    showEditRoomDialog = false
+                }
+            )
+        }
+    }
+
+    if (showDeleteRoomDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteRoomDialog = false },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Door") },
+            text = { Text("Delete door \"${room?.doorNumber}\"? All tenancies and expenses will be permanently removed.") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deleteRoom(); showDeleteRoomDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteRoomDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    paymentToDelete?.let { payment ->
+        AlertDialog(
+            onDismissRequest = { paymentToDelete = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Payment") },
+            text = { Text("Delete ${monthName(payment.month)} ${payment.year} payment of ${formatAmount(payment.amountPaid)}?") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deletePayment(payment); paymentToDelete = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { paymentToDelete = null }) { Text("Cancel") } }
+        )
+    }
+
+    expenseToDelete?.let { expense ->
+        AlertDialog(
+            onDismissRequest = { expenseToDelete = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Expense") },
+            text = { Text("Delete this ${expense.category.ifBlank { "expense" }} of ${formatAmount(expense.amount)}?") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deleteExpense(expense); expenseToDelete = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { expenseToDelete = null }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun EditRoomDialog(
+    room: RoomUnit,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var doorNumber by remember { mutableStateOf(room.doorNumber) }
+    var floor by remember { mutableStateOf(room.floor) }
+    var description by remember { mutableStateOf(room.description) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Edit, null, tint = Green800)
+                Spacer(Modifier.width(8.dp))
+                Text("Edit Door")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(doorNumber, { doorNumber = it }, label = { Text("Door Number *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(floor, { floor = it }, label = { Text("Floor") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(description, { description = it }, label = { Text("Description") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            Button(onClick = { if (doorNumber.isNotBlank()) onConfirm(doorNumber.trim(), floor.trim(), description.trim()) }, enabled = doorNumber.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable

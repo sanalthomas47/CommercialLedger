@@ -54,6 +54,9 @@ class DoorDetailViewModel(
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
 
+    private val _deleted = MutableStateFlow(false)
+    val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
+
     init {
         viewModelScope.launch {
             _room.value = repository.getRoomUnitById(doorId)
@@ -62,6 +65,33 @@ class DoorDetailViewModel(
 
     fun clearError() { _error.value = null }
     fun clearSuccess() { _successMessage.value = null }
+
+    fun updateRoom(doorNumber: String, floor: String, description: String) {
+        viewModelScope.launch {
+            _room.value?.let { room ->
+                val updated = room.copy(doorNumber = doorNumber, floor = floor, description = description)
+                repository.updateRoomUnit(updated)
+                _room.value = updated
+            }
+        }
+    }
+
+    fun deleteRoom() {
+        viewModelScope.launch {
+            _room.value?.let {
+                repository.deleteRoomUnit(it)
+                _deleted.value = true
+            }
+        }
+    }
+
+    fun deletePayment(payment: RentPayment) {
+        viewModelScope.launch { repository.deletePayment(payment) }
+    }
+
+    fun deleteExpense(expense: Expense) {
+        viewModelScope.launch { repository.deleteExpense(expense) }
+    }
 
     fun recordPayment(amountPaise: Long, month: Int, year: Int, paymentMode: String, notes: String) {
         val tenancy = activeTenancy.value

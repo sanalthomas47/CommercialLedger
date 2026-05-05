@@ -7,6 +7,7 @@ import com.santhomach.commercialledger.data.model.Complex
 import com.santhomach.commercialledger.data.model.Expense
 import com.santhomach.commercialledger.data.model.RoomUnit
 import com.santhomach.commercialledger.data.model.Tenancy
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.santhomach.commercialledger.data.repository.LedgerRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -45,6 +46,9 @@ class ComplexDetailViewModel(
     val complexExpenses: StateFlow<List<Expense>> = repository.getExpensesForComplexFlow(complexId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val _deleted = MutableStateFlow(false)
+    val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
+
     fun addRoom(doorNumber: String, floor: String, description: String) {
         viewModelScope.launch {
             repository.insertRoomUnit(
@@ -60,6 +64,31 @@ class ComplexDetailViewModel(
 
     fun deleteRoom(room: RoomUnit) {
         viewModelScope.launch { repository.deleteRoomUnit(room) }
+    }
+
+    fun updateRoom(room: RoomUnit) {
+        viewModelScope.launch { repository.updateRoomUnit(room) }
+    }
+
+    fun updateComplex(name: String, address: String, description: String) {
+        viewModelScope.launch {
+            complex.value?.let {
+                repository.updateComplex(it.copy(name = name, address = address, description = description))
+            }
+        }
+    }
+
+    fun deleteComplex() {
+        viewModelScope.launch {
+            complex.value?.let {
+                repository.deleteComplex(it)
+                _deleted.value = true
+            }
+        }
+    }
+
+    fun deleteExpense(expense: Expense) {
+        viewModelScope.launch { repository.deleteExpense(expense) }
     }
 
     companion object {

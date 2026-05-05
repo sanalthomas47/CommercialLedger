@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.santhomach.commercialledger.CommercialLedgerApplication
+import com.santhomach.commercialledger.data.model.Complex
 import com.santhomach.commercialledger.ui.components.formatAmount
 import com.santhomach.commercialledger.ui.navigation.Screen
 import com.santhomach.commercialledger.ui.theme.*
@@ -44,6 +45,9 @@ fun HomeScreen(navController: NavHostController) {
 
     var showAddDialog by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(false) }
+    var expandedMenuId by remember { mutableStateOf<Long?>(null) }
+    var complexToEdit by remember { mutableStateOf<Complex?>(null) }
+    var complexToDelete by remember { mutableStateOf<Complex?>(null) }
     LaunchedEffect(Unit) { visible = true }
 
     Scaffold(
@@ -243,10 +247,26 @@ fun HomeScreen(navController: NavHostController) {
                                             }
                                         }
                                     }
-                                    Icon(
-                                        Icons.Default.ChevronRight, null,
-                                        tint = NeutralGray.copy(alpha = 0.5f)
-                                    )
+                                    Box {
+                                        IconButton(onClick = { expandedMenuId = complex.id }) {
+                                            Icon(Icons.Default.MoreVert, null, tint = NeutralGray)
+                                        }
+                                        DropdownMenu(
+                                            expanded = expandedMenuId == complex.id,
+                                            onDismissRequest = { expandedMenuId = null }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Edit") },
+                                                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                                onClick = { complexToEdit = complex; expandedMenuId = null }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete") },
+                                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                                onClick = { complexToDelete = complex; expandedMenuId = null }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -266,6 +286,33 @@ fun HomeScreen(navController: NavHostController) {
             }
         )
     }
+
+    complexToEdit?.let { complex ->
+        EditComplexDialog(
+            complex = complex,
+            onDismiss = { complexToEdit = null },
+            onConfirm = { name, address, description ->
+                vm.updateComplex(complex.copy(name = name, address = address, description = description))
+                complexToEdit = null
+            }
+        )
+    }
+
+    complexToDelete?.let { complex ->
+        AlertDialog(
+            onDismissRequest = { complexToDelete = null },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Complex") },
+            text = { Text("Delete \"${complex.name}\"? All doors, tenancies, payments and expenses will be permanently removed.") },
+            confirmButton = {
+                Button(
+                    onClick = { vm.deleteComplex(complex); complexToDelete = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { complexToDelete = null }) { Text("Cancel") } }
+        )
+    }
 }
 
 @Composable
@@ -280,6 +327,39 @@ private fun GlassMetric(label: String, paise: Long, valueColor: Color = Color.Wh
         )
         Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.75f), textAlign = TextAlign.Center)
     }
+}
+
+@Composable
+private fun EditComplexDialog(
+    complex: Complex,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var name by remember { mutableStateOf(complex.name) }
+    var address by remember { mutableStateOf(complex.address) }
+    var description by remember { mutableStateOf(complex.description) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Edit, null, tint = Green800)
+                Spacer(Modifier.width(8.dp))
+                Text("Edit Complex")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("Complex Name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(address, { address = it }, label = { Text("Address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(description, { description = it }, label = { Text("Description") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            Button(onClick = { if (name.isNotBlank()) onConfirm(name.trim(), address.trim(), description.trim()) }, enabled = name.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable

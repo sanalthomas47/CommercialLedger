@@ -5,8 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,7 +28,9 @@ fun DoorCard(
     tenantName: String?,
     monthlyRent: Long,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     val isOccupied = tenancyStatus == TenancyStatus.ACTIVE
     val accentColor = if (isOccupied) Green700 else Amber700
@@ -98,7 +104,33 @@ fun DoorCard(
                         }
                     }
                 }
-                TenancyStatusChip(status = tenancyStatus)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TenancyStatusChip(status = tenancyStatus)
+                    if (onEdit != null || onDelete != null) {
+                        var showMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showMenu = true }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.MoreVert, null, modifier = Modifier.size(18.dp), tint = NeutralGray)
+                            }
+                            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                if (onEdit != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                        onClick = { showMenu = false; onEdit() }
+                                    )
+                                }
+                                if (onDelete != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                        onClick = { showMenu = false; onDelete() }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

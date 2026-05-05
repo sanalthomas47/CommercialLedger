@@ -35,6 +35,10 @@ class HomeViewModel(private val repository: LedgerRepository) : ViewModel() {
         viewModelScope.launch { repository.deleteComplex(complex) }
     }
 
+    fun updateComplex(complex: Complex) {
+        viewModelScope.launch { repository.updateComplex(complex) }
+    }
+
     companion object {
         fun factory(repository: LedgerRepository) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

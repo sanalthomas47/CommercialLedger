@@ -27,6 +27,7 @@ import androidx.navigation.NavHostController
 import com.santhomach.commercialledger.CommercialLedgerApplication
 import com.santhomach.commercialledger.data.model.TenancyStatus
 import com.santhomach.commercialledger.ui.components.formatAmount
+import com.santhomach.commercialledger.ui.navigation.Screen
 import com.santhomach.commercialledger.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -213,7 +214,18 @@ fun TenancyHistoryScreen(roomId: Long, navController: NavHostController) {
                                     }
                                 }
 
-                                if (!isActive) {
+                                if (isActive) {
+                                    Spacer(Modifier.height(10.dp))
+                                    OutlinedButton(
+                                        onClick = { navController.navigate(Screen.TenancyForm.createRoute(tenancy.roomId, tenancy.id)) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Edit Tenancy")
+                                    }
+                                } else {
                                     if (!tenancy.closureNotes.isNullOrBlank()) {
                                         Spacer(Modifier.height(8.dp))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
