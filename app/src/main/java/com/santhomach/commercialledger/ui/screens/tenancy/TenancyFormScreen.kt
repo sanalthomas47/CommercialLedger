@@ -37,6 +37,9 @@ fun TenancyFormScreen(roomId: Long, tenancyId: Long, navController: NavHostContr
     val isSaving by vm.isSaving.collectAsState()
     val error by vm.error.collectAsState()
     val savedSuccessfully by vm.savedSuccessfully.collectAsState()
+    val useExistingTenant by vm.useExistingTenant.collectAsState()
+    val selectedExistingTenant by vm.selectedExistingTenant.collectAsState()
+    val allTenants by vm.allTenants.collectAsState()
 
     LaunchedEffect(savedSuccessfully) {
         if (savedSuccessfully) navController.popBackStack()
@@ -106,85 +109,178 @@ fun TenancyFormScreen(roomId: Long, tenancyId: Long, navController: NavHostContr
                 }
             }
 
-            item {
-                Spacer(Modifier.height(16.dp))
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    FormSectionHeader(Icons.Default.Person, "Tenant Details")
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = state.tenantName,
-                        onValueChange = { vm.update { copy(tenantName = it) } },
-                        label = { Text("Full Name *") },
-                        leadingIcon = { Icon(Icons.Default.Badge, null, tint = NeutralGray) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = state.phone,
-                        onValueChange = { vm.update { copy(phone = it) } },
-                        label = { Text("Phone Number") },
-                        leadingIcon = { Icon(Icons.Default.Phone, null, tint = NeutralGray) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = state.email,
-                        onValueChange = { vm.update { copy(email = it) } },
-                        label = { Text("Email") },
-                        leadingIcon = { Icon(Icons.Default.Email, null, tint = NeutralGray) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            // Mode toggle — only shown for new tenancy
+            if (!isEdit) {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        SegmentedButton(
+                            selected = !useExistingTenant,
+                            onClick = { vm.setUseExistingTenant(false) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                            icon = { SegmentedButtonDefaults.Icon(active = !useExistingTenant) }
+                        ) { Text("New Tenant") }
+                        SegmentedButton(
+                            selected = useExistingTenant,
+                            onClick = { vm.setUseExistingTenant(true) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                            icon = { SegmentedButtonDefaults.Icon(active = useExistingTenant) }
+                        ) { Text("Existing Tenant") }
+                    }
                 }
             }
 
-            item {
-                Spacer(Modifier.height(8.dp))
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val proofTypes = listOf("Aadhaar", "PAN", "Passport", "Voter ID", "Driving License", "Other")
-                        var expanded by remember { mutableStateOf(false) }
+            if (useExistingTenant && !isEdit) {
+                // Existing tenant picker
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        FormSectionHeader(Icons.Default.People, "Select Tenant")
+                        Spacer(Modifier.height(10.dp))
+                        var dropdownExpanded by remember { mutableStateOf(false) }
                         ExposedDropdownMenuBox(
-                            expanded = expanded,
-                            onExpandedChange = { expanded = it },
-                            modifier = Modifier.weight(1f)
+                            expanded = dropdownExpanded,
+                            onExpandedChange = { dropdownExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = state.idProofType,
+                                value = selectedExistingTenant?.let {
+                                    if (it.phone.isNotBlank()) "${it.name} · ${it.phone}" else it.name
+                                } ?: "",
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("ID Proof Type") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                                label = { Text("Tenant *") },
+                                leadingIcon = { Icon(Icons.Default.Person, null, tint = NeutralGray) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dropdownExpanded) },
+                                placeholder = { Text("Select an existing tenant") },
+                                modifier = Modifier
+                                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                                    .fillMaxWidth()
                             )
-                            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                                proofTypes.forEach { t ->
+                            ExposedDropdownMenu(
+                                expanded = dropdownExpanded,
+                                onDismissRequest = { dropdownExpanded = false }
+                            ) {
+                                if (allTenants.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text(t) },
-                                        onClick = { vm.update { copy(idProofType = t) }; expanded = false }
+                                        text = { Text("No tenants found", color = NeutralGray) },
+                                        onClick = { dropdownExpanded = false }
                                     )
+                                } else {
+                                    allTenants.forEach { tenant ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Text(
+                                                        tenant.name,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    if (tenant.phone.isNotBlank()) {
+                                                        Text(
+                                                            tenant.phone,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = NeutralGray
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onClick = {
+                                                vm.selectExistingTenant(tenant)
+                                                dropdownExpanded = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+            } else {
+                // New tenant personal details
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        FormSectionHeader(Icons.Default.Person, "Tenant Details")
+                        Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
-                            value = state.idProofNumber,
-                            onValueChange = { vm.update { copy(idProofNumber = it) } },
-                            label = { Text("ID Number") },
+                            value = state.tenantName,
+                            onValueChange = { vm.update { copy(tenantName = it) } },
+                            label = { Text("Full Name *") },
+                            leadingIcon = { Icon(Icons.Default.Badge, null, tint = NeutralGray) },
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = state.phone,
+                            onValueChange = { vm.update { copy(phone = it) } },
+                            label = { Text("Phone Number") },
+                            leadingIcon = { Icon(Icons.Default.Phone, null, tint = NeutralGray) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = state.email,
+                            onValueChange = { vm.update { copy(email = it) } },
+                            label = { Text("Email") },
+                            leadingIcon = { Icon(Icons.Default.Email, null, tint = NeutralGray) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
+                }
+
+                item {
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = state.tenantAddress,
-                        onValueChange = { vm.update { copy(tenantAddress = it) } },
-                        label = { Text("Tenant Address") },
-                        leadingIcon = { Icon(Icons.Default.Home, null, tint = NeutralGray) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val proofTypes = listOf("Aadhaar", "PAN", "Passport", "Voter ID", "Driving License", "Other")
+                            var expanded by remember { mutableStateOf(false) }
+                            ExposedDropdownMenuBox(
+                                expanded = expanded,
+                                onExpandedChange = { expanded = it },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                OutlinedTextField(
+                                    value = state.idProofType,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("ID Proof Type") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                                )
+                                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                    proofTypes.forEach { t ->
+                                        DropdownMenuItem(
+                                            text = { Text(t) },
+                                            onClick = { vm.update { copy(idProofType = t) }; expanded = false }
+                                        )
+                                    }
+                                }
+                            }
+                            OutlinedTextField(
+                                value = state.idProofNumber,
+                                onValueChange = { vm.update { copy(idProofNumber = it) } },
+                                label = { Text("ID Number") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = state.tenantAddress,
+                            onValueChange = { vm.update { copy(tenantAddress = it) } },
+                            label = { Text("Tenant Address") },
+                            leadingIcon = { Icon(Icons.Default.Home, null, tint = NeutralGray) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
 

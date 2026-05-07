@@ -7,6 +7,7 @@ import com.santhomach.commercialledger.data.model.Complex
 import com.santhomach.commercialledger.data.model.Expense
 import com.santhomach.commercialledger.data.model.RoomUnit
 import com.santhomach.commercialledger.data.model.Tenancy
+import com.santhomach.commercialledger.data.model.Tenant
 import kotlinx.coroutines.flow.MutableStateFlow
 import com.santhomach.commercialledger.data.repository.LedgerRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -45,6 +46,14 @@ class ComplexDetailViewModel(
 
     val complexExpenses: StateFlow<List<Expense>> = repository.getExpensesForComplexFlow(complexId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val paidTenancyIdsThisMonth: StateFlow<Set<Long>> = repository
+        .getPaidTenancyIdsForComplex(complexId, now.monthValue, now.year)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val tenantMap: StateFlow<Map<Long, Tenant>> = repository.getAllTenantsFlow()
+        .map { list -> list.associateBy { it.id } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val _deleted = MutableStateFlow(false)
     val deleted: StateFlow<Boolean> = _deleted.asStateFlow()

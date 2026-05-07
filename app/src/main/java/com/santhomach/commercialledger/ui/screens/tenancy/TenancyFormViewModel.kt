@@ -10,8 +10,10 @@ import com.santhomach.commercialledger.data.repository.LedgerRepository
 import com.santhomach.commercialledger.ui.components.parseAmountToPaise
 import com.santhomach.commercialledger.ui.components.paiToDisplayString
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -49,6 +51,15 @@ class TenancyFormViewModel(
     private val _savedSuccessfully = MutableStateFlow(false)
     val savedSuccessfully: StateFlow<Boolean> = _savedSuccessfully.asStateFlow()
 
+    private val _useExistingTenant = MutableStateFlow(false)
+    val useExistingTenant: StateFlow<Boolean> = _useExistingTenant.asStateFlow()
+
+    private val _selectedExistingTenant = MutableStateFlow<Tenant?>(null)
+    val selectedExistingTenant: StateFlow<Tenant?> = _selectedExistingTenant.asStateFlow()
+
+    val allTenants: StateFlow<List<Tenant>> = repository.getAllTenantsFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private var existingTenancy: Tenancy? = null
     private var existingTenant: Tenant? = null
 
@@ -85,16 +96,42 @@ class TenancyFormViewModel(
         _formState.update { it.block() }
     }
 
+    fun setUseExistingTenant(value: Boolean) {
+        _useExistingTenant.value = value
+        if (!value) _selectedExistingTenant.value = null
+    }
+
+    fun selectExistingTenant(tenant: Tenant) {
+        _selectedExistingTenant.value = tenant
+    }
+
     fun clearError() {
         _error.value = null
     }
 
     fun save() {
         val state = _formState.value
-        if (state.tenantName.isBlank()) {
-            _error.value = "Tenant name is required"
-            return
+        val isExistingMode = _useExistingTenant.value
+
+        if (existingTenant == null && existingTenancy == null) {
+            if (isExistingMode) {
+                if (_selectedExistingTenant.value == null) {
+                    _error.value = "Please select a tenant"
+                    return
+                }
+            } else {
+                if (state.tenantName.isBlank()) {
+                    _error.value = "Tenant name is required"
+                    return
+                }
+            }
+        } else {
+            if (state.tenantName.isBlank()) {
+                _error.value = "Tenant name is required"
+                return
+            }
         }
+
         if (state.monthlyRent.isBlank() || state.monthlyRent.toDoubleOrNull() == null) {
             _error.value = "Enter a valid monthly rent"
             return
@@ -108,10 +145,50 @@ class TenancyFormViewModel(
             _isSaving.value = true
             _error.value = null
             try {
-                if (existingTenant != null && existingTenancy != null) {
-                    // Edit path — update tenant and tenancy separately (both already exist)
-                    repository.updateTenant(
-                        existingTenant!!.copy(
+                when {
+                    existingTenant != null && existingTenancy != null -> {
+                        // Edit path — update tenant and tenancy separately
+                        repository.updateTenant(
+                            existingTenant!!.copy(
+                                name = state.tenantName.trim(),
+                                phone = state.phone.trim(),
+                                email = state.email.trim(),
+                                idProofType = state.idProofType.trim(),
+                                idProofNumber = state.idProofNumber.trim(),
+                                address = state.tenantAddress.trim()
+                            )
+                        )
+                        repository.updateTenancy(
+                            existingTenancy!!.copy(
+                                startDate = state.startDate,
+                                endDate = state.endDate.ifBlank { null },
+                                monthlyRent = parseAmountToPaise(state.monthlyRent),
+                                securityDeposit = parseAmountToPaise(state.securityDeposit),
+                                taxAmount = parseAmountToPaise(state.taxAmount),
+                                agreementDocPath = state.agreementDocPath.ifBlank { null }
+                            )
+                        )
+                    }
+                    isExistingMode -> {
+                        // Existing tenant, new door assignment
+                        val tenant = _selectedExistingTenant.value!!
+                        repository.insertTenancyForExistingTenant(
+                            Tenancy(
+                                roomId = roomId,
+                                tenantId = tenant.id,
+                                startDate = state.startDate,
+                                endDate = state.endDate.ifBlank { null },
+                                monthlyRent = parseAmountToPaise(state.monthlyRent),
+                                securityDeposit = parseAmountToPaise(state.securityDeposit),
+                                taxAmount = parseAmountToPaise(state.taxAmount),
+                                agreementDocPath = state.agreementDocPath.ifBlank { null },
+                                status = TenancyStatus.ACTIVE
+                            )
+                        ).onFailure { e -> throw e }
+                    }
+                    else -> {
+                        // New tenant + new tenancy
+                        val newTenant = Tenant(
                             name = state.tenantName.trim(),
                             phone = state.phone.trim(),
                             email = state.email.trim(),
@@ -119,40 +196,20 @@ class TenancyFormViewModel(
                             idProofNumber = state.idProofNumber.trim(),
                             address = state.tenantAddress.trim()
                         )
-                    )
-                    repository.updateTenancy(
-                        existingTenancy!!.copy(
+                        val newTenancy = Tenancy(
+                            roomId = roomId,
+                            tenantId = 0L,
                             startDate = state.startDate,
                             endDate = state.endDate.ifBlank { null },
                             monthlyRent = parseAmountToPaise(state.monthlyRent),
                             securityDeposit = parseAmountToPaise(state.securityDeposit),
                             taxAmount = parseAmountToPaise(state.taxAmount),
-                            agreementDocPath = state.agreementDocPath.ifBlank { null }
+                            agreementDocPath = state.agreementDocPath.ifBlank { null },
+                            status = TenancyStatus.ACTIVE
                         )
-                    )
-                } else {
-                    // New tenancy — atomic insert of tenant + tenancy in one transaction
-                    val newTenant = Tenant(
-                        name = state.tenantName.trim(),
-                        phone = state.phone.trim(),
-                        email = state.email.trim(),
-                        idProofType = state.idProofType.trim(),
-                        idProofNumber = state.idProofNumber.trim(),
-                        address = state.tenantAddress.trim()
-                    )
-                    val newTenancy = Tenancy(
-                        roomId = roomId,
-                        tenantId = 0L, // will be set atomically in repository
-                        startDate = state.startDate,
-                        endDate = state.endDate.ifBlank { null },
-                        monthlyRent = parseAmountToPaise(state.monthlyRent),
-                        securityDeposit = parseAmountToPaise(state.securityDeposit),
-                        taxAmount = parseAmountToPaise(state.taxAmount),
-                        agreementDocPath = state.agreementDocPath.ifBlank { null },
-                        status = TenancyStatus.ACTIVE
-                    )
-                    repository.insertTenantAndTenancy(newTenant, newTenancy)
-                        .onFailure { e -> throw e }
+                        repository.insertTenantAndTenancy(newTenant, newTenancy)
+                            .onFailure { e -> throw e }
+                    }
                 }
                 _savedSuccessfully.value = true
             } catch (e: Exception) {

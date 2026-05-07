@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.santhomach.commercialledger.ui.screens.backup.BackupScreen
 import com.santhomach.commercialledger.ui.screens.complex.ComplexDetailScreen
 import com.santhomach.commercialledger.ui.screens.door.DoorDetailScreen
 import com.santhomach.commercialledger.ui.screens.expense.ExpenseFormScreen
@@ -40,6 +41,8 @@ sealed class Screen(val route: String) {
         fun createRoute(complexId: Long, roomId: Long = 0L, expenseId: Long = 0L) =
             "expense_form/$complexId?roomId=$roomId&expenseId=$expenseId"
     }
+
+    object Backup : Screen("backup")
 }
 
 @Composable
@@ -116,6 +119,10 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                 expenseId = args.getLong("expenseId"),
                 navController = navController
             )
+        }
+
+        composable(Screen.Backup.route) {
+            BackupScreen(navController = navController)
         }
     }
 }

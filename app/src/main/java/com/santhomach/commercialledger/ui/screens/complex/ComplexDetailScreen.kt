@@ -36,6 +36,8 @@ import com.santhomach.commercialledger.ui.components.DoorCard
 import com.santhomach.commercialledger.ui.components.formatAmount
 import com.santhomach.commercialledger.ui.navigation.Screen
 import com.santhomach.commercialledger.ui.theme.*
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +53,8 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
     val expectedRent by vm.expectedMonthlyRent.collectAsState()
     val collectedMonth by vm.collectedThisMonth.collectAsState()
     val expenses by vm.complexExpenses.collectAsState()
+    val paidTenancyIdsThisMonth by vm.paidTenancyIdsThisMonth.collectAsState()
+    val tenantMap by vm.tenantMap.collectAsState()
 
     val deleted by vm.deleted.collectAsState()
     LaunchedEffect(deleted) { if (deleted) navController.popBackStack() }
@@ -264,12 +268,81 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
                         DoorCard(
                             room = room,
                             tenancyStatus = tenancy?.status,
-                            tenantName = null,
+                            tenantName = tenancy?.tenantId?.let { tenantMap[it]?.name },
                             monthlyRent = tenancy?.monthlyRent ?: 0L,
                             onClick = { navController.navigate(Screen.DoorDetail.createRoute(room.id)) },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
                             onEdit = { roomToEdit = room },
                             onDelete = { roomToDelete = room }
+                        )
+                    }
+                }
+            }
+
+            val occupiedRooms = rooms.filter { activeTenancyMap[it.id]?.status == TenancyStatus.ACTIVE }
+            if (occupiedRooms.isNotEmpty()) {
+                val monthYearLabel = DateTimeFormatter.ofPattern("MMMM yyyy").format(LocalDate.now())
+                val paidCount = occupiedRooms.count { room ->
+                    val tenancyId = activeTenancyMap[room.id]?.id ?: -1L
+                    tenancyId in paidTenancyIdsThisMonth
+                }
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AttachMoney,
+                                contentDescription = null,
+                                tint = Green800,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Payment Status",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (paidCount == occupiedRooms.size) IncomeGreen.copy(alpha = 0.12f)
+                                    else NeutralGray.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                "$paidCount / ${occupiedRooms.size} paid",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (paidCount == occupiedRooms.size) IncomeGreen else NeutralGray,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        monthYearLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NeutralGray,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                itemsIndexed(occupiedRooms, key = { _, r -> "ps_${r.id}" }) { _, room ->
+                    activeTenancyMap[room.id]?.let { tenancy ->
+                        val isPaid = tenancy.id in paidTenancyIdsThisMonth
+                        val tenantName = tenantMap[tenancy.tenantId]?.name ?: ""
+                        PaymentStatusRow(
+                            doorNumber = room.doorNumber,
+                            tenantName = tenantName,
+                            monthlyRent = tenancy.monthlyRent,
+                            isPaid = isPaid,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -517,6 +590,67 @@ private fun EditRoomDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+@Composable
+private fun PaymentStatusRow(
+    doorNumber: String,
+    tenantName: String,
+    monthlyRent: Long,
+    isPaid: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isPaid) OccupiedBg else VacantBg),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Door $doorNumber",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (tenantName.isNotBlank()) {
+                    Text(
+                        tenantName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NeutralGray
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    formatAmount(monthlyRent),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NeutralGray
+                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isPaid) IncomeGreen.copy(alpha = 0.15f) else ExpenseRed.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        if (isPaid) "Paid" else "Unpaid",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isPaid) IncomeGreen else ExpenseRed,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable

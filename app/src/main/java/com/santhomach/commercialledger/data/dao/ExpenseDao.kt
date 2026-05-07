@@ -38,4 +38,13 @@ interface ExpenseDao {
 
     @Delete
     suspend fun delete(expense: Expense)
+
+    @Query("SELECT * FROM expenses")
+    suspend fun getAll(): List<Expense>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<Expense>)
+
+    @Query("DELETE FROM expenses")
+    suspend fun deleteAll()
 }

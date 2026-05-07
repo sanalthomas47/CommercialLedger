@@ -17,4 +17,13 @@ interface TenantDao {
 
     @Update
     suspend fun update(tenant: Tenant)
+
+    @Query("SELECT * FROM tenants")
+    suspend fun getAll(): List<Tenant>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<Tenant>)
+
+    @Query("DELETE FROM tenants")
+    suspend fun deleteAll()
 }

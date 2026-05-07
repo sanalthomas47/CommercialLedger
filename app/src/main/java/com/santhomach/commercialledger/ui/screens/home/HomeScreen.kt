@@ -98,13 +98,23 @@ fun HomeScreen(navController: NavHostController) {
                                     color = Color.White.copy(alpha = 0.75f)
                                 )
                             }
-                            IconButton(onClick = { navController.navigate(Screen.Summary.route) }) {
-                                Icon(
-                                    Icons.Default.BarChart,
-                                    contentDescription = "Summary",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                            Row {
+                                IconButton(onClick = { navController.navigate(Screen.Summary.route) }) {
+                                    Icon(
+                                        Icons.Default.BarChart,
+                                        contentDescription = "Summary",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                IconButton(onClick = { navController.navigate(Screen.Backup.route) }) {
+                                    Icon(
+                                        Icons.Default.Backup,
+                                        contentDescription = "Backup & Restore",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
                             }
                         }
 

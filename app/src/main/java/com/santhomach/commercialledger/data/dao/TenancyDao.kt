@@ -53,9 +53,26 @@ interface TenancyDao {
     @Query("SELECT COUNT(*) FROM tenancies WHERE roomId = :roomId AND status = 'ACTIVE'")
     suspend fun countActiveTenanciesForRoom(roomId: Long): Int
 
+    @Query("""
+        SELECT r.doorNumber FROM tenancies t
+        INNER JOIN room_units r ON t.roomId = r.id
+        WHERE t.tenantId = :tenantId AND t.status = 'ACTIVE'
+        ORDER BY r.doorNumber ASC
+    """)
+    fun getActiveDoorNumbersForTenant(tenantId: Long): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(tenancy: Tenancy): Long
 
     @Update
     suspend fun update(tenancy: Tenancy)
+
+    @Query("SELECT * FROM tenancies")
+    suspend fun getAll(): List<Tenancy>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<Tenancy>)
+
+    @Query("DELETE FROM tenancies")
+    suspend fun deleteAll()
 }

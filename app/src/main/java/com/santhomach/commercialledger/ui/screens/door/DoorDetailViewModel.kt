@@ -34,6 +34,14 @@ class DoorDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    val tenantAllDoors: StateFlow<List<String>> = activeTenancy
+        .flatMapLatest { tenancy ->
+            if (tenancy == null) flowOf(emptyList())
+            else repository.getActiveDoorNumbersForTenant(tenancy.tenantId)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val recentPayments: StateFlow<List<RentPayment>> = activeTenancy
         .flatMapLatest { tenancy ->
             if (tenancy == null) flowOf(emptyList())

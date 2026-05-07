@@ -20,4 +20,13 @@ interface RoomUnitDao {
 
     @Delete
     suspend fun delete(roomUnit: RoomUnit)
+
+    @Query("SELECT * FROM room_units")
+    suspend fun getAll(): List<RoomUnit>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<RoomUnit>)
+
+    @Query("DELETE FROM room_units")
+    suspend fun deleteAll()
 }

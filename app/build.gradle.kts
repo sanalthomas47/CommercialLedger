@@ -42,6 +42,12 @@ android {
         compose = true
     }
     buildToolsVersion = "37.0.0"
+
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDir("$projectDir/schemas")
+        }
+    }
 }
 
 dependencies {
@@ -61,6 +67,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    implementation(libs.gson)
 
     implementation(libs.androidx.navigation.compose)
 

@@ -49,6 +49,7 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
     val room by vm.roomState.collectAsState()
     val tenancy by vm.activeTenancy.collectAsState()
     val tenant by vm.activeTenant.collectAsState()
+    val tenantAllDoors by vm.tenantAllDoors.collectAsState()
     val payments by vm.recentPayments.collectAsState()
     val doorExpenses by vm.doorExpenses.collectAsState()
     val error by vm.error.collectAsState()
@@ -212,6 +213,26 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                                         Text(tenant!!.phone, style = MaterialTheme.typography.bodySmall, color = NeutralGray)
                                     }
                                     Text("Since ${tenancy!!.startDate}", style = MaterialTheme.typography.bodySmall, color = NeutralGray)
+                                    val otherDoors = tenantAllDoors.filter { it != room?.doorNumber }
+                                    if (otherDoors.isNotEmpty()) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.MeetingRoom,
+                                                contentDescription = null,
+                                                tint = Teal700,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                "Also in: ${otherDoors.joinToString(", ") { "Door $it" }}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Teal700
+                                            )
+                                        }
+                                    }
                                 }
                             }
 

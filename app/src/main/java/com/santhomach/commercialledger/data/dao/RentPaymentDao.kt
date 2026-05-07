@@ -43,6 +43,14 @@ interface RentPaymentDao {
     @Query("SELECT COUNT(*) FROM rent_payments WHERE tenancyId = :tenancyId AND month = :month AND year = :year")
     suspend fun countForMonth(tenancyId: Long, month: Int, year: Int): Int
 
+    @Query("""
+        SELECT p.tenancyId FROM rent_payments p
+        INNER JOIN tenancies t ON p.tenancyId = t.id
+        INNER JOIN room_units r ON t.roomId = r.id
+        WHERE p.month = :month AND p.year = :year AND r.complexId = :complexId
+    """)
+    fun getPaidTenancyIdsForComplex(complexId: Long, month: Int, year: Int): Flow<List<Long>>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(payment: RentPayment): Long
 
@@ -51,4 +59,13 @@ interface RentPaymentDao {
 
     @Delete
     suspend fun delete(payment: RentPayment)
+
+    @Query("SELECT * FROM rent_payments")
+    suspend fun getAll(): List<RentPayment>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<RentPayment>)
+
+    @Query("DELETE FROM rent_payments")
+    suspend fun deleteAll()
 }

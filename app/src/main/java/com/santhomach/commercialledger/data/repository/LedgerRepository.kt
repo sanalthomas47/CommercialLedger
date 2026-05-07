@@ -1,10 +1,12 @@
 package com.santhomach.commercialledger.data.repository
 
 import androidx.room.withTransaction
+import com.google.gson.GsonBuilder
 import com.santhomach.commercialledger.data.dao.*
 import com.santhomach.commercialledger.data.db.AppDatabase
 import com.santhomach.commercialledger.data.model.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.LocalDateTime
 
 class LedgerRepository(
@@ -64,6 +66,17 @@ class LedgerRepository(
         tenancyDao.getCollectedRentForComplex(complexId, month, year)
     suspend fun getTenancyById(id: Long): Tenancy? = tenancyDao.getById(id)
 
+    fun getActiveDoorNumbersForTenant(tenantId: Long): Flow<List<String>> =
+        tenancyDao.getActiveDoorNumbersForTenant(tenantId)
+
+    suspend fun insertTenancyForExistingTenant(tenancy: Tenancy): Result<Long> = runCatching {
+        database.withTransaction {
+            val existingActive = tenancyDao.countActiveTenanciesForRoom(tenancy.roomId)
+            if (existingActive > 0) error("This door already has an active tenant")
+            tenancyDao.insert(tenancy)
+        }
+    }
+
     suspend fun closeTenancy(
         tenancyId: Long,
         endDate: String,
@@ -99,6 +112,9 @@ class LedgerRepository(
     fun getTotalAllTimeByComplexFlow(complexId: Long): Flow<Long> =
         rentPaymentDao.getTotalAllTimeByComplexFlow(complexId)
 
+    fun getPaidTenancyIdsForComplex(complexId: Long, month: Int, year: Int): Flow<Set<Long>> =
+        rentPaymentDao.getPaidTenancyIdsForComplex(complexId, month, year).map { it.toSet() }
+
     suspend fun insertPayment(payment: RentPayment): Result<Long> = runCatching {
         val existing = rentPaymentDao.countForMonth(payment.tenancyId, payment.month, payment.year)
         if (existing > 0) error("Payment for ${payment.month}/${payment.year} already recorded")
@@ -125,4 +141,43 @@ class LedgerRepository(
     suspend fun updateExpense(expense: Expense) = expenseDao.update(expense)
     suspend fun deleteExpense(expense: Expense) = expenseDao.delete(expense)
     suspend fun getExpenseById(id: Long): Expense? = expenseDao.getById(id)
+
+    // Backup / Restore
+    private val gson = GsonBuilder().setPrettyPrinting().serializeNulls().create()
+
+    suspend fun exportBackup(): String {
+        val data = BackupData(
+            exportedAt = LocalDateTime.now().toString(),
+            complexes = complexDao.getAll(),
+            roomUnits = roomUnitDao.getAll(),
+            tenants = tenantDao.getAll(),
+            tenancies = tenancyDao.getAll(),
+            rentPayments = rentPaymentDao.getAll(),
+            expenses = expenseDao.getAll(),
+        )
+        return gson.toJson(data)
+    }
+
+    suspend fun importFromBackup(json: String): Result<Unit> = runCatching {
+        val data = gson.fromJson(json, BackupData::class.java)
+            ?: error("Invalid backup file")
+        require(data.version == 1) { "Unsupported backup version ${data.version}" }
+        database.withTransaction {
+            // Delete children before parents to satisfy FK constraints
+            rentPaymentDao.deleteAll()
+            expenseDao.deleteAll()
+            tenancyDao.deleteAll()
+            roomUnitDao.deleteAll()
+            tenantDao.deleteAll()
+            complexDao.deleteAll()
+            // Insert parents before children; orEmpty() guards against fields
+            // missing in a hand-edited or incomplete backup file
+            complexDao.insertAll(data.complexes.orEmpty())
+            roomUnitDao.insertAll(data.roomUnits.orEmpty())
+            tenantDao.insertAll(data.tenants.orEmpty())
+            tenancyDao.insertAll(data.tenancies.orEmpty())
+            rentPaymentDao.insertAll(data.rentPayments.orEmpty())
+            expenseDao.insertAll(data.expenses.orEmpty())
+        }
+    }
 }

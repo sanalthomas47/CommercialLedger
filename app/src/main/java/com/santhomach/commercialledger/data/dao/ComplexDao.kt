@@ -20,4 +20,13 @@ interface ComplexDao {
 
     @Delete
     suspend fun delete(complex: Complex)
+
+    @Query("SELECT * FROM complexes")
+    suspend fun getAll(): List<Complex>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<Complex>)
+
+    @Query("DELETE FROM complexes")
+    suspend fun deleteAll()
 }
