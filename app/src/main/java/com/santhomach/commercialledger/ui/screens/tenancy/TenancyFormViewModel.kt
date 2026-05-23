@@ -132,7 +132,7 @@ class TenancyFormViewModel(
             }
         }
 
-        if (state.monthlyRent.isBlank() || state.monthlyRent.toDoubleOrNull() == null) {
+        if (state.monthlyRent.isBlank() || (state.monthlyRent.toDoubleOrNull() ?: 0.0) <= 0.0) {
             _error.value = "Enter a valid monthly rent"
             return
         }

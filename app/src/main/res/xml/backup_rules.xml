@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <include domain="database" path="commercial_ledger.db"/>
+    <include domain="database" path="commercial_ledger.db-wal"/>
+    <include domain="database" path="commercial_ledger.db-shm"/>
     <include domain="sharedpref" path="."/>
     <exclude domain="sharedpref" path="${applicationId}.v2.keystore"/>
 </full-backup-content>

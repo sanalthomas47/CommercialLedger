@@ -33,6 +33,7 @@ import com.santhomach.commercialledger.data.model.TenancyStatus
 import com.santhomach.commercialledger.ui.components.DatePickerField
 import com.santhomach.commercialledger.ui.components.TenancyStatusChip
 import com.santhomach.commercialledger.ui.components.formatAmount
+import com.santhomach.commercialledger.ui.components.parseAmountToPaise
 import com.santhomach.commercialledger.ui.components.paiToDisplayString
 import com.santhomach.commercialledger.ui.navigation.Screen
 import com.santhomach.commercialledger.ui.theme.*
@@ -402,8 +403,8 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
         RecordPaymentSheet(
             tenancyMonthlyRent = tenancy?.monthlyRent ?: 0L,
             onDismiss = { showPaymentSheet = false },
-            onConfirm = { amount, month, year, mode, notes ->
-                vm.recordPayment(amount, month, year, mode, notes)
+            onConfirm = { amount, paymentDate, month, year, mode, notes ->
+                vm.recordPayment(amount, paymentDate, month, year, mode, notes)
                 showPaymentSheet = false
             }
         )
@@ -544,12 +545,15 @@ private fun DetailRow(label: String, value: String) {
 private fun RecordPaymentSheet(
     tenancyMonthlyRent: Long,
     onDismiss: () -> Unit,
-    onConfirm: (Long, Int, Int, String, String) -> Unit
+    onConfirm: (Long, String, Int, Int, String, String) -> Unit
 ) {
     val today = LocalDate.now()
+    val prevMonth = today.minusMonths(1)
     var amount by remember { mutableStateOf(paiToDisplayString(tenancyMonthlyRent)) }
-    var month by remember { mutableIntStateOf(today.monthValue) }
-    var year by remember { mutableIntStateOf(today.year) }
+    var amountError by remember { mutableStateOf(false) }
+    var paymentDate by remember { mutableStateOf(today.toString()) }
+    var month by remember { mutableIntStateOf(prevMonth.monthValue) }
+    var year by remember { mutableIntStateOf(prevMonth.year) }
     var paymentMode by remember { mutableStateOf("Cash") }
     var notes by remember { mutableStateOf("") }
 
@@ -567,11 +571,25 @@ private fun RecordPaymentSheet(
 
             OutlinedTextField(
                 value = amount,
-                onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) amount = it },
+                onValueChange = {
+                    if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                        amount = it
+                        amountError = false
+                    }
+                },
                 label = { Text("Amount (₹)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 prefix = { Text("₹") },
+                isError = amountError,
+                supportingText = if (amountError) { { Text("Enter a valid amount greater than 0") } } else null,
                 singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            DatePickerField(
+                value = paymentDate,
+                onValueChange = { paymentDate = it },
+                label = "Payment Date",
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -579,7 +597,7 @@ private fun RecordPaymentSheet(
                 OutlinedTextField(
                     value = month.toString(),
                     onValueChange = { v -> v.toIntOrNull()?.let { if (it in 1..12) month = it } },
-                    label = { Text("Month (1-12)") },
+                    label = { Text("Rent Month (1-12)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f)
@@ -622,8 +640,12 @@ private fun RecordPaymentSheet(
 
             Button(
                 onClick = {
-                    val paise = (amount.toDoubleOrNull() ?: 0.0).let { (it * 100).toLong() }
-                    if (paise > 0) onConfirm(paise, month, year, paymentMode, notes)
+                    val paise = parseAmountToPaise(amount)
+                    if (paise > 0) {
+                        onConfirm(paise, paymentDate, month, year, paymentMode, notes)
+                    } else {
+                        amountError = true
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -683,7 +705,7 @@ private fun CloseTenancyDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val refundPaise = (refund.toDoubleOrNull() ?: 0.0).let { (it * 100).toLong() }
+                    val refundPaise = parseAmountToPaise(refund)
                     onConfirm(endDate, notes.trim(), refundPaise)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

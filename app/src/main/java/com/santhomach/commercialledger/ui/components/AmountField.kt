@@ -36,8 +36,9 @@ fun AmountField(
 fun formatAmount(paise: Long): String = "₹%.2f".format(paise / 100.0)
 
 fun parseAmountToPaise(input: String): Long {
-    val d = input.toDoubleOrNull() ?: return 0L
-    return (d * 100).toLong()
+    return input.toBigDecimalOrNull()
+        ?.multiply(java.math.BigDecimal(100))
+        ?.toLong() ?: 0L
 }
 
 fun paiToDisplayString(paise: Long): String = "%.2f".format(paise / 100.0)

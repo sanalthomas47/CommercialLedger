@@ -2,11 +2,15 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="database" path="commercial_ledger.db"/>
+        <include domain="database" path="commercial_ledger.db-wal"/>
+        <include domain="database" path="commercial_ledger.db-shm"/>
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="${applicationId}.v2.keystore"/>
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="commercial_ledger.db"/>
+        <include domain="database" path="commercial_ledger.db-wal"/>
+        <include domain="database" path="commercial_ledger.db-shm"/>
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="${applicationId}.v2.keystore"/>
     </device-transfer>

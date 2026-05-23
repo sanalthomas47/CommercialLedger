@@ -12,7 +12,6 @@ import com.santhomach.commercialledger.data.repository.LedgerRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 class DoorDetailViewModel(
     private val doorId: Long,
@@ -101,7 +100,7 @@ class DoorDetailViewModel(
         viewModelScope.launch { repository.deleteExpense(expense) }
     }
 
-    fun recordPayment(amountPaise: Long, month: Int, year: Int, paymentMode: String, notes: String) {
+    fun recordPayment(amountPaise: Long, paymentDate: String, month: Int, year: Int, paymentMode: String, notes: String) {
         val tenancy = activeTenancy.value
         if (tenancy == null) {
             _error.value = "No active tenancy. Please add a tenant first."
@@ -113,7 +112,7 @@ class DoorDetailViewModel(
             repository.insertPayment(
                 RentPayment(
                     tenancyId = tenancy.id,
-                    paymentDate = LocalDate.now().toString(),
+                    paymentDate = paymentDate,
                     amountPaid = amountPaise,
                     month = month,
                     year = year,

@@ -116,9 +116,11 @@ class LedgerRepository(
         rentPaymentDao.getPaidTenancyIdsForComplex(complexId, month, year).map { it.toSet() }
 
     suspend fun insertPayment(payment: RentPayment): Result<Long> = runCatching {
-        val existing = rentPaymentDao.countForMonth(payment.tenancyId, payment.month, payment.year)
-        if (existing > 0) error("Payment for ${payment.month}/${payment.year} already recorded")
-        rentPaymentDao.insert(payment)
+        database.withTransaction {
+            val existing = rentPaymentDao.countForMonth(payment.tenancyId, payment.month, payment.year)
+            if (existing > 0) error("Payment for ${payment.month}/${payment.year} already recorded")
+            rentPaymentDao.insert(payment)
+        }
     }
 
     suspend fun deletePayment(payment: RentPayment) = rentPaymentDao.delete(payment)
@@ -162,6 +164,7 @@ class LedgerRepository(
         val data = gson.fromJson(json, BackupData::class.java)
             ?: error("Invalid backup file")
         require(data.version == 1) { "Unsupported backup version ${data.version}" }
+        require(data.exportedAt.isNotBlank()) { "Not a valid CommercialLedger backup file" }
         database.withTransaction {
             // Delete children before parents to satisfy FK constraints
             rentPaymentDao.deleteAll()

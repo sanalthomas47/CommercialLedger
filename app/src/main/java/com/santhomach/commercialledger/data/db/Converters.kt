@@ -9,11 +9,13 @@ class Converters {
     fun fromTenancyStatus(value: TenancyStatus): String = value.name
 
     @TypeConverter
-    fun toTenancyStatus(value: String): TenancyStatus = TenancyStatus.valueOf(value)
+    fun toTenancyStatus(value: String): TenancyStatus =
+        runCatching { TenancyStatus.valueOf(value) }.getOrDefault(TenancyStatus.ACTIVE)
 
     @TypeConverter
     fun fromExpenseType(value: ExpenseType): String = value.name
 
     @TypeConverter
-    fun toExpenseType(value: String): ExpenseType = ExpenseType.valueOf(value)
+    fun toExpenseType(value: String): ExpenseType =
+        runCatching { ExpenseType.valueOf(value) }.getOrDefault(ExpenseType.COMPLEX)
 }
