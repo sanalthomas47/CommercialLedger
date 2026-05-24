@@ -6,7 +6,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.santhomach.commercialledger.data.dao.*
 import com.santhomach.commercialledger.data.model.*
 
@@ -91,15 +90,6 @@ abstract class AppDatabase : RoomDatabase() {
                     // Safe on existing WAL databases — SQLite checkpoints the WAL and
                     // switches modes automatically on the next open.
                     .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
-                    .addCallback(object : RoomDatabase.Callback() {
-                        override fun onOpen(db: SupportSQLiteDatabase) {
-                            // Force a full WAL checkpoint on every open.
-                            // This merges any WAL data into the main .db file immediately,
-                            // so Android Auto Backup always captures a consistent, complete
-                            // snapshot — even on the first open after switching from WAL mode.
-                            db.execSQL("PRAGMA wal_checkpoint(FULL)")
-                        }
-                    })
                     // Register manual migrations here for complex changes that
                     // @AutoMigration cannot handle automatically.
                     // .addMigrations(Migrations.MIGRATION_1_2)
