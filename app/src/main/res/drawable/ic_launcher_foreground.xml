@@ -4,74 +4,52 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- Left page -->
+    <!-- Ledger sheet -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M24,32 L51,32 L51,78 L24,78 Z" />
-    <!-- Right page -->
+        android:pathData="M38,27 H70 A5,5 0 0 1 75,32 V76 A5,5 0 0 1 70,81 H38 A5,5 0 0 1 33,76 V32 A5,5 0 0 1 38,27 Z" />
+    <!-- Header band -->
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M38,27 H70 A5,5 0 0 1 75,32 V39 H33 V32 A5,5 0 0 1 38,27 Z" />
+    <!-- Header title -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M39,33 L58,33" />
+    <!-- Ledger rows -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C8E6C9"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M39,47 L69,47 M39,55 L69,55 M39,63 L69,63 M39,71 L69,71" />
+    <!-- Amount column divider -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C8E6C9"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M55,43 L55,76" />
+    <!-- Coin outline -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M57,32 L84,32 L84,78 L57,78 Z" />
-
-    <!-- Spine arc — open-book effect -->
+        android:pathData="M53.9,69 A12.1,12.1 0 1 1 78.1,69 A12.1,12.1 0 1 1 53.9,69 Z" />
+    <!-- Rupee coin -->
+    <path
+        android:fillColor="#388E3C"
+        android:pathData="M55.5,69 A10.5,10.5 0 1 1 76.5,69 A10.5,10.5 0 1 1 55.5,69 Z" />
+    <!-- Rupee sign -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="2.5"
-        android:pathData="M51,32 Q54,27 57,32" />
-
-    <!-- Left page header (amber) -->
-    <path
-        android:fillColor="#F9A825"
-        android:pathData="M24,32 L51,32 L51,43 L24,43 Z" />
-    <!-- Right page header (amber) -->
-    <path
-        android:fillColor="#F9A825"
-        android:pathData="M57,32 L84,32 L84,43 L57,43 Z" />
-
-    <!-- Left header: white title line -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2.5"
-        android:pathData="M28,37 L47,37" />
-    <!-- Right header: white title line -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2.5"
-        android:pathData="M61,37 L80,37" />
-
-    <!-- Left page: 4 horizontal ledger rows -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#7986CB"
-        android:strokeWidth="2"
-        android:pathData="M28,51 L48,51 M28,59 L48,59 M28,67 L48,67 M28,75 L48,75" />
-    <!-- Left page: vertical column divider -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#9FA8DA"
-        android:strokeWidth="1.5"
-        android:pathData="M41,44 L41,78" />
-
-    <!-- Right page: bar chart base line -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#7986CB"
-        android:strokeWidth="2"
-        android:pathData="M59,73 L82,73" />
-    <!-- Bar 1 — short -->
-    <path
-        android:fillColor="#F9A825"
-        android:pathData="M60,67 L65,67 L65,73 L60,73 Z" />
-    <!-- Bar 2 — medium -->
-    <path
-        android:fillColor="#F9A825"
-        android:pathData="M67,56 L72,56 L72,73 L67,73 Z" />
-    <!-- Bar 3 — tall, reaches just below header -->
-    <path
-        android:fillColor="#F9A825"
-        android:pathData="M74,44 L79,44 L79,73 L74,73 Z" />
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M61.6,64.0 H70.2 M61.6,67.4 H70.2 M61.6,64.0 H65.0 A2.6000000000000028,2.6000000000000028 0 0 1 65.0,69.2 H61.6 L69.0,75.2" />
 </vector>
