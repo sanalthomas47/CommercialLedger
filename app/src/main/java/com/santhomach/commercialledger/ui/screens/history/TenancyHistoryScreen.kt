@@ -1,6 +1,7 @@
 package com.santhomach.commercialledger.ui.screens.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -25,8 +26,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.santhomach.commercialledger.CommercialLedgerApplication
+import com.santhomach.commercialledger.data.model.RentPayment
 import com.santhomach.commercialledger.data.model.TenancyStatus
 import com.santhomach.commercialledger.ui.components.formatAmount
+import com.santhomach.commercialledger.ui.components.monthName
 import com.santhomach.commercialledger.ui.navigation.Screen
 import com.santhomach.commercialledger.ui.theme.*
 
@@ -41,6 +44,7 @@ fun TenancyHistoryScreen(roomId: Long, navController: NavHostController) {
     val room by vm.room.collectAsState()
     val tenancies by vm.tenancies.collectAsState()
     val tenantMap by vm.tenantMap.collectAsState()
+    val paymentsByTenancy by vm.paymentsByTenancy.collectAsState()
 
     Scaffold(
         topBar = {
@@ -214,6 +218,8 @@ fun TenancyHistoryScreen(roomId: Long, navController: NavHostController) {
                                     }
                                 }
 
+                                TenancyPayments(payments = paymentsByTenancy[tenancy.id].orEmpty())
+
                                 if (isActive) {
                                     Spacer(Modifier.height(10.dp))
                                     OutlinedButton(
@@ -266,5 +272,67 @@ private fun InfoChip(label: String, value: String, tint: Color) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = NeutralGray, fontSize = 10.sp)
         Text(value, style = MaterialTheme.typography.bodySmall, color = tint, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun TenancyPayments(payments: List<RentPayment>) {
+    Spacer(Modifier.height(8.dp))
+    if (payments.isEmpty()) {
+        Text("No payments recorded", style = MaterialTheme.typography.bodySmall, color = NeutralGray)
+        return
+    }
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { expanded = !expanded }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Payments, null, tint = IncomeGreen, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(
+            "${payments.size} payment${if (payments.size == 1) "" else "s"} · ${formatAmount(payments.sumOf { it.amountPaid })}",
+            style = MaterialTheme.typography.bodySmall,
+            color = IncomeGreen,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (expanded) "Hide payments" else "Show payments",
+            tint = NeutralGray,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+    if (expanded) {
+        payments.forEach { payment ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "${monthName(payment.month)} ${payment.year}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "${payment.paymentDate} · ${payment.paymentMode}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NeutralGray
+                    )
+                }
+                Text(
+                    formatAmount(payment.amountPaid),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IncomeGreen,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
     }
 }

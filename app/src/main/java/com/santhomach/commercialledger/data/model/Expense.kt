@@ -15,6 +15,13 @@ enum class ExpenseType { COMPLEX, DOOR }
             parentColumns = ["id"],
             childColumns = ["complexId"],
             onDelete = ForeignKey.CASCADE
+        ),
+        // Door-level expenses are removed together with their door (added in DB v2)
+        ForeignKey(
+            entity = RoomUnit::class,
+            parentColumns = ["id"],
+            childColumns = ["roomId"],
+            onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [Index("complexId"), Index("roomId"), Index("year", "month")]

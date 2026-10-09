@@ -40,6 +40,7 @@ fun TenancyFormScreen(roomId: Long, tenancyId: Long, navController: NavHostContr
     val useExistingTenant by vm.useExistingTenant.collectAsState()
     val selectedExistingTenant by vm.selectedExistingTenant.collectAsState()
     val allTenants by vm.allTenants.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
 
     LaunchedEffect(savedSuccessfully) {
         if (savedSuccessfully) navController.popBackStack()
@@ -57,7 +58,7 @@ fun TenancyFormScreen(roomId: Long, tenancyId: Long, navController: NavHostContr
                     }
                 },
                 actions = {
-                    IconButton(onClick = { vm.save() }, enabled = !isSaving) {
+                    IconButton(onClick = { vm.save() }, enabled = !isSaving && !isLoading) {
                         Icon(Icons.Default.Save, contentDescription = "Save")
                     }
                 },
@@ -367,7 +368,7 @@ fun TenancyFormScreen(roomId: Long, tenancyId: Long, navController: NavHostContr
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = { vm.save() },
-                    enabled = !isSaving,
+                    enabled = !isSaving && !isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)

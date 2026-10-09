@@ -54,7 +54,7 @@ import com.santhomach.commercialledger.data.model.*
         RentPayment::class,
         Expense::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
     // When adding a new field, increment version above and append the new
     // AutoMigration pair here. See the guide at the top of this file.
@@ -92,7 +92,7 @@ abstract class AppDatabase : RoomDatabase() {
                     .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                     // Register manual migrations here for complex changes that
                     // @AutoMigration cannot handle automatically.
-                    // .addMigrations(Migrations.MIGRATION_1_2)
+                    .addMigrations(Migrations.MIGRATION_1_2)
                     .build()
                     .also { INSTANCE = it }
             }

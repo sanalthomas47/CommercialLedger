@@ -28,6 +28,7 @@ import androidx.navigation.NavHostController
 import com.santhomach.commercialledger.CommercialLedgerApplication
 import com.santhomach.commercialledger.ui.components.formatAmount
 import com.santhomach.commercialledger.ui.theme.*
+import java.time.LocalDate
 import java.time.Month
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,7 +150,9 @@ fun SummaryScreen(navController: NavHostController) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val years = (2020..2030).toList()
+                    // Newest first: next year down to ten years back
+                    val currentYear = LocalDate.now().year
+                    val years = (currentYear + 1 downTo currentYear - 10).toList()
                     var yearExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = yearExpanded,

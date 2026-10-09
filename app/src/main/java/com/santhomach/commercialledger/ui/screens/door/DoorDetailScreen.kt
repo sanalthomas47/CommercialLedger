@@ -33,6 +33,7 @@ import com.santhomach.commercialledger.data.model.TenancyStatus
 import com.santhomach.commercialledger.ui.components.DatePickerField
 import com.santhomach.commercialledger.ui.components.TenancyStatusChip
 import com.santhomach.commercialledger.ui.components.formatAmount
+import com.santhomach.commercialledger.ui.components.monthName
 import com.santhomach.commercialledger.ui.components.parseAmountToPaise
 import com.santhomach.commercialledger.ui.components.paiToDisplayString
 import com.santhomach.commercialledger.ui.navigation.Screen
@@ -51,7 +52,7 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
     val tenancy by vm.activeTenancy.collectAsState()
     val tenant by vm.activeTenant.collectAsState()
     val tenantAllDoors by vm.tenantAllDoors.collectAsState()
-    val payments by vm.recentPayments.collectAsState()
+    val payments by vm.payments.collectAsState()
     val doorExpenses by vm.doorExpenses.collectAsState()
     val error by vm.error.collectAsState()
     val isProcessing by vm.isProcessing.collectAsState()
@@ -61,6 +62,7 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
     LaunchedEffect(deleted) { if (deleted) navController.popBackStack() }
 
     var showPaymentSheet by remember { mutableStateOf(false) }
+    var paymentToEdit by remember { mutableStateOf<RentPayment?>(null) }
     var showCloseDialog by remember { mutableStateOf(false) }
     var showEditRoomDialog by remember { mutableStateOf(false) }
     var showDeleteRoomDialog by remember { mutableStateOf(false) }
@@ -292,7 +294,8 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                 item {
                     SectionHeader("Recent Payments", Icons.Default.Receipt)
                 }
-                items(payments, key = { it.id }) { payment ->
+                // Keys are prefixed: payment and expense ids come from different tables and can collide
+                items(payments.take(RECENT_PAYMENT_COUNT), key = { "pay_${it.id}" }) { payment ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -338,6 +341,12 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                                     fontWeight = FontWeight.Bold
                                 )
                                 IconButton(
+                                    onClick = { paymentToEdit = payment },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, "Edit payment", tint = NeutralGray, modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(
                                     onClick = { paymentToDelete = payment },
                                     modifier = Modifier.size(32.dp)
                                 ) {
@@ -347,12 +356,20 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
                         }
                     }
                 }
+                if (payments.size > RECENT_PAYMENT_COUNT) {
+                    item {
+                        TextButton(
+                            onClick = { navController.navigate(Screen.TenancyHistory.createRoute(doorId)) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("View all ${payments.size} payments in history") }
+                    }
+                }
             }
 
             // Door expenses
             if (doorExpenses.isNotEmpty()) {
                 item { SectionHeader("Door Expenses", Icons.Default.Receipt) }
-                items(doorExpenses, key = { it.id }) { expense ->
+                items(doorExpenses, key = { "exp_${it.id}" }) { expense ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -399,19 +416,37 @@ fun DoorDetailScreen(doorId: Long, navController: NavHostController) {
         }
     }
 
-    if (showPaymentSheet) {
+    if (showPaymentSheet || paymentToEdit != null) {
+        val editing = paymentToEdit
         RecordPaymentSheet(
             tenancyMonthlyRent = tenancy?.monthlyRent ?: 0L,
-            onDismiss = { showPaymentSheet = false },
+            existingPayments = payments,
+            editing = editing,
+            onDismiss = { showPaymentSheet = false; paymentToEdit = null },
             onConfirm = { amount, paymentDate, month, year, mode, notes ->
-                vm.recordPayment(amount, paymentDate, month, year, mode, notes)
+                if (editing != null) {
+                    vm.updatePayment(
+                        editing.copy(
+                            amountPaid = amount,
+                            paymentDate = paymentDate,
+                            month = month,
+                            year = year,
+                            paymentMode = mode,
+                            notes = notes
+                        )
+                    )
+                } else {
+                    vm.recordPayment(amount, paymentDate, month, year, mode, notes)
+                }
                 showPaymentSheet = false
+                paymentToEdit = null
             }
         )
     }
 
     if (showCloseDialog) {
         CloseTenancyDialog(
+            startDate = tenancy?.startDate ?: "",
             depositAmount = tenancy?.securityDeposit ?: 0L,
             onDismiss = { showCloseDialog = false },
             onConfirm = { endDate, notes, refund ->
@@ -544,18 +579,29 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun RecordPaymentSheet(
     tenancyMonthlyRent: Long,
+    existingPayments: List<RentPayment>,
+    editing: RentPayment?,
     onDismiss: () -> Unit,
     onConfirm: (Long, String, Int, Int, String, String) -> Unit
 ) {
     val today = LocalDate.now()
     val prevMonth = today.minusMonths(1)
-    var amount by remember { mutableStateOf(paiToDisplayString(tenancyMonthlyRent)) }
+    // Already paid towards a rent month, not counting the payment being edited
+    fun paidFor(m: Int, y: Int) = existingPayments
+        .filter { it.month == m && it.year == y && it.id != editing?.id }
+        .sumOf { it.amountPaid }
+    // New payment: default to what is still due for last month (full rent if nothing is due)
+    val initialAmount = editing?.amountPaid
+        ?: (tenancyMonthlyRent - paidFor(prevMonth.monthValue, prevMonth.year))
+            .takeIf { it > 0 } ?: tenancyMonthlyRent
+    var amount by remember { mutableStateOf(paiToDisplayString(initialAmount)) }
     var amountError by remember { mutableStateOf(false) }
-    var paymentDate by remember { mutableStateOf(today.toString()) }
-    var month by remember { mutableIntStateOf(prevMonth.monthValue) }
-    var year by remember { mutableIntStateOf(prevMonth.year) }
-    var paymentMode by remember { mutableStateOf("Cash") }
-    var notes by remember { mutableStateOf("") }
+    var paymentDate by remember { mutableStateOf(editing?.paymentDate ?: today.toString()) }
+    var month by remember { mutableIntStateOf(editing?.month ?: prevMonth.monthValue) }
+    var yearText by remember { mutableStateOf((editing?.year ?: prevMonth.year).toString()) }
+    var yearError by remember { mutableStateOf(false) }
+    var paymentMode by remember { mutableStateOf(editing?.paymentMode ?: "Cash") }
+    var notes by remember { mutableStateOf(editing?.notes ?: "") }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White) {
         Column(
@@ -565,7 +611,7 @@ private fun RecordPaymentSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Payments, null, tint = Green700, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Record Rent Payment", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(if (editing != null) "Edit Rent Payment" else "Record Rent Payment", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
             HorizontalDivider()
 
@@ -594,21 +640,53 @@ private fun RecordPaymentSheet(
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                var monthExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = monthExpanded,
+                    onExpandedChange = { monthExpanded = it },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = monthName(month),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Rent Month") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(monthExpanded) },
+                        singleLine = true,
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }) {
+                        (1..12).forEach { m ->
+                            DropdownMenuItem(text = { Text(monthName(m)) }, onClick = { month = m; monthExpanded = false })
+                        }
+                    }
+                }
+                // Free-form while typing; the 2000..2100 range is checked on save
                 OutlinedTextField(
-                    value = month.toString(),
-                    onValueChange = { v -> v.toIntOrNull()?.let { if (it in 1..12) month = it } },
-                    label = { Text("Rent Month (1-12)") },
+                    value = yearText,
+                    onValueChange = { v ->
+                        if (v.length <= 4 && v.all { it.isDigit() }) {
+                            yearText = v
+                            yearError = false
+                        }
+                    },
+                    label = { Text("Year") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = yearError,
+                    supportingText = if (yearError) { { Text("Enter a year 2000–2100") } } else null,
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
-                OutlinedTextField(
-                    value = year.toString(),
-                    onValueChange = { v -> v.toIntOrNull()?.let { if (it in 2000..2100) year = it } },
-                    label = { Text("Year") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
+            }
+
+            val selectedYear = yearText.toIntOrNull()
+            val alreadyPaid = selectedYear?.let { paidFor(month, it) } ?: 0L
+            if (alreadyPaid > 0) {
+                Text(
+                    "Already recorded for ${monthName(month)} $selectedYear: " +
+                        "${formatAmount(alreadyPaid)} of ${formatAmount(tenancyMonthlyRent)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Amber700
                 )
             }
 
@@ -641,10 +719,11 @@ private fun RecordPaymentSheet(
             Button(
                 onClick = {
                     val paise = parseAmountToPaise(amount)
-                    if (paise > 0) {
+                    val year = yearText.toIntOrNull()?.takeIf { it in 2000..2100 }
+                    amountError = paise <= 0
+                    yearError = year == null
+                    if (!amountError && year != null) {
                         onConfirm(paise, paymentDate, month, year, paymentMode, notes)
-                    } else {
-                        amountError = true
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -652,7 +731,7 @@ private fun RecordPaymentSheet(
             ) {
                 Icon(Icons.Default.Check, null)
                 Spacer(Modifier.width(8.dp))
-                Text("Save Payment", fontWeight = FontWeight.SemiBold)
+                Text(if (editing != null) "Update Payment" else "Save Payment", fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -660,6 +739,7 @@ private fun RecordPaymentSheet(
 
 @Composable
 private fun CloseTenancyDialog(
+    startDate: String,
     depositAmount: Long,
     onDismiss: () -> Unit,
     onConfirm: (String, String, Long) -> Unit
@@ -667,6 +747,8 @@ private fun CloseTenancyDialog(
     var endDate by remember { mutableStateOf(LocalDate.now().toString()) }
     var notes by remember { mutableStateOf("") }
     var refund by remember { mutableStateOf(paiToDisplayString(depositAmount)) }
+    var endDateError by remember { mutableStateOf<String?>(null) }
+    var refundError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -674,7 +756,15 @@ private fun CloseTenancyDialog(
         title = { Text("Close Tenancy") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                DatePickerField(value = endDate, onValueChange = { endDate = it }, label = "End Date", modifier = Modifier.fillMaxWidth())
+                DatePickerField(
+                    value = endDate,
+                    onValueChange = { endDate = it; endDateError = null },
+                    label = "End Date",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                endDateError?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
                 OutlinedTextField(
                     value = notes, onValueChange = { notes = it },
                     label = { Text("Closure Notes") }, singleLine = true,
@@ -682,10 +772,17 @@ private fun CloseTenancyDialog(
                 )
                 OutlinedTextField(
                     value = refund,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) refund = it },
+                    onValueChange = {
+                        if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                            refund = it
+                            refundError = null
+                        }
+                    },
                     label = { Text("Deposit Refund (₹)") },
                     prefix = { Text("₹") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = refundError != null,
+                    supportingText = refundError?.let { { Text(it) } },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -705,8 +802,19 @@ private fun CloseTenancyDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    val end = runCatching { LocalDate.parse(endDate) }.getOrNull()
+                    val start = runCatching { LocalDate.parse(startDate) }.getOrNull()
                     val refundPaise = parseAmountToPaise(refund)
-                    onConfirm(endDate, notes.trim(), refundPaise)
+                    endDateError = when {
+                        end == null -> "Select an end date"
+                        start != null && end.isBefore(start) -> "End date can't be before the start date ($startDate)"
+                        else -> null
+                    }
+                    refundError = if (refundPaise > depositAmount)
+                        "Refund can't exceed the deposit of ${formatAmount(depositAmount)}" else null
+                    if (endDateError == null && refundError == null) {
+                        onConfirm(endDate, notes.trim(), refundPaise)
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) { Text("Close Tenancy") }
@@ -715,4 +823,4 @@ private fun CloseTenancyDialog(
     )
 }
 
-private fun monthName(month: Int) = java.time.Month.of(month).name.lowercase().replaceFirstChar { it.uppercase() }
+private const val RECENT_PAYMENT_COUNT = 10

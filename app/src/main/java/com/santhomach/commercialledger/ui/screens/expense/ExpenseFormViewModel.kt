@@ -16,8 +16,7 @@ data class ExpenseFormState(
     val amount: String = "",
     val date: String = LocalDate.now().toString(),
     val category: String = "",
-    val description: String = "",
-    val type: ExpenseType = ExpenseType.COMPLEX
+    val description: String = ""
 )
 
 class ExpenseFormViewModel(
@@ -27,9 +26,7 @@ class ExpenseFormViewModel(
     private val repository: LedgerRepository
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        ExpenseFormState(type = if (roomId != 0L) ExpenseType.DOOR else ExpenseType.COMPLEX)
-    )
+    private val _state = MutableStateFlow(ExpenseFormState())
     val state: StateFlow<ExpenseFormState> = _state.asStateFlow()
 
     private val _isSaving = MutableStateFlow(false)
@@ -40,6 +37,11 @@ class ExpenseFormViewModel(
 
     private val _savedSuccessfully = MutableStateFlow(false)
     val savedSuccessfully: StateFlow<Boolean> = _savedSuccessfully.asStateFlow()
+
+    // True while an existing expense is being loaded for editing; saving is blocked
+    // until then so an early tap can't insert a duplicate instead of updating.
+    private val _isLoading = MutableStateFlow(expenseId != 0L)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private var existing: Expense? = null
 
@@ -53,10 +55,12 @@ class ExpenseFormViewModel(
                         amount = paiToDisplayString(expense.amount),
                         date = expense.date,
                         category = expense.category,
-                        description = expense.description,
-                        type = expense.type
+                        description = expense.description
                     )
+                } else {
+                    _error.value = "Expense not found"
                 }
+                _isLoading.value = false
             }
         }
     }
@@ -66,6 +70,11 @@ class ExpenseFormViewModel(
     }
 
     fun save() {
+        if (_isLoading.value || _isSaving.value) return
+        if (expenseId != 0L && existing == null) {
+            _error.value = "Expense not found"
+            return
+        }
         val s = _state.value
         if (s.amount.isBlank() || s.amount.toDoubleOrNull() == null) {
             _error.value = "Valid amount is required"
@@ -95,7 +104,7 @@ class ExpenseFormViewModel(
                             year = year,
                             category = s.category.trim(),
                             description = s.description.trim(),
-                            type = s.type
+                            type = if (existing!!.roomId != null) ExpenseType.DOOR else ExpenseType.COMPLEX
                         )
                     )
                 } else {
@@ -109,7 +118,7 @@ class ExpenseFormViewModel(
                             year = year,
                             category = s.category.trim(),
                             description = s.description.trim(),
-                            type = if (roomId != 0L) ExpenseType.DOOR else s.type
+                            type = if (roomId != 0L) ExpenseType.DOOR else ExpenseType.COMPLEX
                         )
                     )
                 }

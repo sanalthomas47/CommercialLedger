@@ -60,6 +60,11 @@ class TenancyFormViewModel(
     val allTenants: StateFlow<List<Tenant>> = repository.getAllTenantsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // True while an existing tenancy is being loaded for editing; saving is blocked
+    // until then so an early tap can't create a new tenancy instead of updating.
+    private val _isLoading = MutableStateFlow(tenancyId != 0L)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     private var existingTenancy: Tenancy? = null
     private var existingTenant: Tenant? = null
 
@@ -88,6 +93,10 @@ class TenancyFormViewModel(
                         )
                     }
                 }
+                if (existingTenancy == null || existingTenant == null) {
+                    _error.value = "Tenancy not found"
+                }
+                _isLoading.value = false
             }
         }
     }
@@ -110,6 +119,11 @@ class TenancyFormViewModel(
     }
 
     fun save() {
+        if (_isLoading.value || _isSaving.value) return
+        if (tenancyId != 0L && (existingTenancy == null || existingTenant == null)) {
+            _error.value = "Tenancy not found"
+            return
+        }
         val state = _formState.value
         val isExistingMode = _useExistingTenant.value
 

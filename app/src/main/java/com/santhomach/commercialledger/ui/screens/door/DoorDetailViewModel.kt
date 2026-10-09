@@ -40,13 +40,14 @@ class DoorDetailViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // All payments of the active tenancy, newest rent month first. The screen shows
+    // the latest few; the full list is also needed for per-month totals.
     @OptIn(ExperimentalCoroutinesApi::class)
-    val recentPayments: StateFlow<List<RentPayment>> = activeTenancy
+    val payments: StateFlow<List<RentPayment>> = activeTenancy
         .flatMapLatest { tenancy ->
             if (tenancy == null) flowOf(emptyList())
             else repository.getPaymentsForTenancyFlow(tenancy.id)
         }
-        .map { it.take(10) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val doorExpenses: StateFlow<List<Expense>> = repository.getExpensesForRoomFlow(doorId)
@@ -124,6 +125,17 @@ class DoorDetailViewModel(
             }.onFailure { e ->
                 _error.value = e.message ?: "Failed to record payment"
             }
+            _isProcessing.value = false
+        }
+    }
+
+    fun updatePayment(payment: RentPayment) {
+        if (_isProcessing.value) return
+        viewModelScope.launch {
+            _isProcessing.value = true
+            repository.updatePayment(payment)
+                .onSuccess { _successMessage.value = "Payment updated" }
+                .onFailure { e -> _error.value = e.message ?: "Failed to update payment" }
             _isProcessing.value = false
         }
     }

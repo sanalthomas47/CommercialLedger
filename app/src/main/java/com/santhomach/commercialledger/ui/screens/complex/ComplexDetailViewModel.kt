@@ -47,9 +47,10 @@ class ComplexDetailViewModel(
     val complexExpenses: StateFlow<List<Expense>> = repository.getExpensesForComplexFlow(complexId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val paidTenancyIdsThisMonth: StateFlow<Set<Long>> = repository
-        .getPaidTenancyIdsForComplex(complexId, now.monthValue, now.year)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+    // tenancyId → amount paid towards the current month's rent
+    val paidTotalsThisMonth: StateFlow<Map<Long, Long>> = repository
+        .getPaidTotalsForComplex(complexId, now.monthValue, now.year)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val tenantMap: StateFlow<Map<Long, Tenant>> = repository.getAllTenantsFlow()
         .map { list -> list.associateBy { it.id } }

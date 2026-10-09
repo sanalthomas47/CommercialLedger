@@ -7,6 +7,7 @@ import com.santhomach.commercialledger.data.db.AppDatabase
 import com.santhomach.commercialledger.data.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 class LedgerRepository(
@@ -88,6 +89,10 @@ class LedgerRepository(
                 ?: error("Tenancy not found")
             if (tenancy.status == TenancyStatus.CLOSED)
                 error("Tenancy is already closed")
+            if (LocalDate.parse(endDate).isBefore(LocalDate.parse(tenancy.startDate)))
+                error("End date can't be before the start date")
+            if (refundAmount > tenancy.securityDeposit)
+                error("Refund can't exceed the security deposit")
             tenancyDao.update(
                 tenancy.copy(
                     status = TenancyStatus.CLOSED,
@@ -112,15 +117,20 @@ class LedgerRepository(
     fun getTotalAllTimeByComplexFlow(complexId: Long): Flow<Long> =
         rentPaymentDao.getTotalAllTimeByComplexFlow(complexId)
 
-    fun getPaidTenancyIdsForComplex(complexId: Long, month: Int, year: Int): Flow<Set<Long>> =
-        rentPaymentDao.getPaidTenancyIdsForComplex(complexId, month, year).map { it.toSet() }
+    fun getPaymentsForRoomFlow(roomId: Long): Flow<List<RentPayment>> =
+        rentPaymentDao.getByRoomFlow(roomId)
+
+    /** tenancyId → total paid for that rent month (several partial payments allowed). */
+    fun getPaidTotalsForComplex(complexId: Long, month: Int, year: Int): Flow<Map<Long, Long>> =
+        rentPaymentDao.getPaidTotalsForComplex(complexId, month, year)
+            .map { list -> list.associate { it.tenancyId to it.total } }
 
     suspend fun insertPayment(payment: RentPayment): Result<Long> = runCatching {
-        database.withTransaction {
-            val existing = rentPaymentDao.countForMonth(payment.tenancyId, payment.month, payment.year)
-            if (existing > 0) error("Payment for ${payment.month}/${payment.year} already recorded")
-            rentPaymentDao.insert(payment)
-        }
+        rentPaymentDao.insert(payment)
+    }
+
+    suspend fun updatePayment(payment: RentPayment): Result<Unit> = runCatching {
+        rentPaymentDao.update(payment)
     }
 
     suspend fun deletePayment(payment: RentPayment) = rentPaymentDao.delete(payment)
@@ -180,7 +190,10 @@ class LedgerRepository(
             tenantDao.insertAll(data.tenants.orEmpty())
             tenancyDao.insertAll(data.tenancies.orEmpty())
             rentPaymentDao.insertAll(data.rentPayments.orEmpty())
-            expenseDao.insertAll(data.expenses.orEmpty())
+            // Backups from DB v1 may hold expenses of already-deleted doors; they
+            // would now violate the roomId foreign key, so skip them (as MIGRATION_1_2 does)
+            val roomIds = data.roomUnits.orEmpty().map { it.id }.toSet()
+            expenseDao.insertAll(data.expenses.orEmpty().filter { it.roomId == null || it.roomId in roomIds })
         }
     }
 }

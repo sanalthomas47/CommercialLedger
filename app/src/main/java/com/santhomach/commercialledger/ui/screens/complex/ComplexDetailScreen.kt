@@ -53,7 +53,7 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
     val expectedRent by vm.expectedMonthlyRent.collectAsState()
     val collectedMonth by vm.collectedThisMonth.collectAsState()
     val expenses by vm.complexExpenses.collectAsState()
-    val paidTenancyIdsThisMonth by vm.paidTenancyIdsThisMonth.collectAsState()
+    val paidTotalsThisMonth by vm.paidTotalsThisMonth.collectAsState()
     val tenantMap by vm.tenantMap.collectAsState()
 
     val deleted by vm.deleted.collectAsState()
@@ -259,7 +259,8 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
                         }
                     }
                 }
-                itemsIndexed(rooms, key = { _, r -> r.id }) { _, room ->
+                // Keys are prefixed: room and expense ids come from different tables and can collide
+                itemsIndexed(rooms, key = { _, r -> "room_${r.id}" }) { _, room ->
                     AnimatedVisibility(
                         visible = visible,
                         enter = fadeIn() + slideInVertically { it / 2 }
@@ -282,9 +283,9 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
             val occupiedRooms = rooms.filter { activeTenancyMap[it.id]?.status == TenancyStatus.ACTIVE }
             if (occupiedRooms.isNotEmpty()) {
                 val monthYearLabel = DateTimeFormatter.ofPattern("MMMM yyyy").format(LocalDate.now())
+                // Fully paid = this month's payments cover the rent (partial payments add up)
                 val paidCount = occupiedRooms.count { room ->
-                    val tenancyId = activeTenancyMap[room.id]?.id ?: -1L
-                    tenancyId in paidTenancyIdsThisMonth
+                    activeTenancyMap[room.id]?.let { (paidTotalsThisMonth[it.id] ?: 0L) >= it.monthlyRent } == true
                 }
                 item {
                     Spacer(Modifier.height(8.dp))
@@ -335,106 +336,45 @@ fun ComplexDetailScreen(complexId: Long, navController: NavHostController) {
                 }
                 itemsIndexed(occupiedRooms, key = { _, r -> "ps_${r.id}" }) { _, room ->
                     activeTenancyMap[room.id]?.let { tenancy ->
-                        val isPaid = tenancy.id in paidTenancyIdsThisMonth
                         val tenantName = tenantMap[tenancy.tenantId]?.name ?: ""
                         PaymentStatusRow(
                             doorNumber = room.doorNumber,
                             tenantName = tenantName,
                             monthlyRent = tenancy.monthlyRent,
-                            isPaid = isPaid,
+                            paidAmount = paidTotalsThisMonth[tenancy.id] ?: 0L,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                         )
                     }
                 }
             }
 
-            if (expenses.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                    Spacer(Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Receipt, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "Complex Expenses",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
+            val complexLevelExpenses = expenses.filter { it.roomId == null }
+            val doorLevelExpenses = expenses.filter { it.roomId != null }
+            val roomsById = rooms.associateBy { it.id }
+
+            if (complexLevelExpenses.isNotEmpty()) {
+                item { ExpenseSectionHeader("Complex Expenses", complexLevelExpenses.sumOf { it.amount }) }
+                itemsIndexed(complexLevelExpenses, key = { _, e -> "exp_${e.id}" }) { _, expense ->
+                    ExpenseRow(
+                        expense = expense,
+                        doorLabel = null,
+                        onEdit = { navController.navigate(Screen.ExpenseForm.createRoute(complexId, 0L, expense.id)) },
+                        onDelete = { expenseToDelete = expense }
+                    )
                 }
-                itemsIndexed(expenses, key = { _, e -> e.id }) { _, expense ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(1.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(ExpenseRed.copy(alpha = 0.1f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.TrendingDown,
-                                        contentDescription = null,
-                                        tint = ExpenseRed,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        expense.category.ifBlank { "Expense" },
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(expense.date, style = MaterialTheme.typography.bodySmall, color = NeutralGray)
-                                    if (expense.description.isNotBlank()) {
-                                        Text(
-                                            expense.description,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = NeutralGray.copy(alpha = 0.8f)
-                                        )
-                                    }
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    formatAmount(expense.amount),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = ExpenseRed,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                IconButton(
-                                    onClick = { navController.navigate(Screen.ExpenseForm.createRoute(complexId, 0L, expense.id)) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.Edit, null, tint = NeutralGray, modifier = Modifier.size(16.dp))
-                                }
-                                IconButton(
-                                    onClick = { expenseToDelete = expense },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        }
-                    }
+            }
+
+            if (doorLevelExpenses.isNotEmpty()) {
+                item { ExpenseSectionHeader("Door Expenses", doorLevelExpenses.sumOf { it.amount }) }
+                itemsIndexed(doorLevelExpenses, key = { _, e -> "exp_${e.id}" }) { _, expense ->
+                    ExpenseRow(
+                        expense = expense,
+                        doorLabel = expense.roomId?.let { roomsById[it] }?.let { "Door ${it.doorNumber}" },
+                        onEdit = {
+                            navController.navigate(Screen.ExpenseForm.createRoute(complexId, expense.roomId ?: 0L, expense.id))
+                        },
+                        onDelete = { expenseToDelete = expense }
+                    )
                 }
             }
             item { Spacer(Modifier.height(8.dp)) }
@@ -597,9 +537,16 @@ private fun PaymentStatusRow(
     doorNumber: String,
     tenantName: String,
     monthlyRent: Long,
-    isPaid: Boolean,
+    paidAmount: Long,
     modifier: Modifier = Modifier
 ) {
+    val isPaid = paidAmount >= monthlyRent
+    val isPartial = !isPaid && paidAmount > 0
+    val statusColor = when {
+        isPaid -> IncomeGreen
+        isPartial -> Amber700
+        else -> ExpenseRed
+    }
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -632,21 +579,129 @@ private fun PaymentStatusRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    formatAmount(monthlyRent),
+                    if (isPartial) "${formatAmount(paidAmount)} of ${formatAmount(monthlyRent)}"
+                    else formatAmount(monthlyRent),
                     style = MaterialTheme.typography.bodySmall,
                     color = NeutralGray
                 )
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = if (isPaid) IncomeGreen.copy(alpha = 0.15f) else ExpenseRed.copy(alpha = 0.12f)
+                    color = statusColor.copy(alpha = 0.13f)
                 ) {
                     Text(
-                        if (isPaid) "Paid" else "Unpaid",
+                        when {
+                            isPaid -> "Paid"
+                            isPartial -> "Partial"
+                            else -> "Unpaid"
+                        },
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isPaid) IncomeGreen else ExpenseRed,
+                        color = statusColor,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpenseSectionHeader(title: String, total: Long) {
+    Column {
+        Spacer(Modifier.height(8.dp))
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Receipt, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                formatAmount(total),
+                style = MaterialTheme.typography.titleSmall,
+                color = ExpenseRed,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun ExpenseRow(
+    expense: Expense,
+    doorLabel: String?,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(ExpenseRed.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.TrendingDown,
+                        contentDescription = null,
+                        tint = ExpenseRed,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        expense.category.ifBlank { "Expense" },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        listOfNotNull(doorLabel, expense.date).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NeutralGray
+                    )
+                    if (expense.description.isNotBlank()) {
+                        Text(
+                            expense.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NeutralGray.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    formatAmount(expense.amount),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = ExpenseRed,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Edit, "Edit expense", tint = NeutralGray, modifier = Modifier.size(16.dp))
+                }
+                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Delete, "Delete expense", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                 }
             }
         }

@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.santhomach.commercialledger.CommercialLedgerApplication
-import com.santhomach.commercialledger.data.model.ExpenseType
 import com.santhomach.commercialledger.ui.components.AmountField
 import com.santhomach.commercialledger.ui.components.DatePickerField
 import com.santhomach.commercialledger.ui.theme.*
@@ -43,6 +42,7 @@ fun ExpenseFormScreen(
     val isSaving by vm.isSaving.collectAsState()
     val error by vm.error.collectAsState()
     val savedSuccessfully by vm.savedSuccessfully.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
 
     LaunchedEffect(savedSuccessfully) {
         if (savedSuccessfully) navController.popBackStack()
@@ -66,7 +66,7 @@ fun ExpenseFormScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { vm.save() }, enabled = !isSaving) {
+                    IconButton(onClick = { vm.save() }, enabled = !isSaving && !isLoading) {
                         Icon(Icons.Default.Save, contentDescription = "Save")
                     }
                 },
@@ -177,36 +177,6 @@ fun ExpenseFormScreen(
                 }
             }
 
-            if (!isDoorLevel && !isEdit) {
-                item {
-                    Spacer(Modifier.height(16.dp))
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        FormSectionHeader(icon = Icons.Default.Tune, label = "Expense Level")
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = state.type == ExpenseType.COMPLEX,
-                                onClick = { vm.update { copy(type = ExpenseType.COMPLEX) } },
-                                label = { Text("Complex-level") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Green800,
-                                    selectedLabelColor = Color.White
-                                )
-                            )
-                            FilterChip(
-                                selected = state.type == ExpenseType.DOOR,
-                                onClick = { vm.update { copy(type = ExpenseType.DOOR) } },
-                                label = { Text("Door-level") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Green800,
-                                    selectedLabelColor = Color.White
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
             if (error != null) {
                 item {
                     Spacer(Modifier.height(8.dp))
@@ -235,7 +205,7 @@ fun ExpenseFormScreen(
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = { vm.save() },
-                    enabled = !isSaving,
+                    enabled = !isSaving && !isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)

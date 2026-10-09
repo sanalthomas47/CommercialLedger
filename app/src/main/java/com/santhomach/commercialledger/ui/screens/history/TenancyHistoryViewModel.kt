@@ -3,6 +3,7 @@ package com.santhomach.commercialledger.ui.screens.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.santhomach.commercialledger.data.model.RentPayment
 import com.santhomach.commercialledger.data.model.RoomUnit
 import com.santhomach.commercialledger.data.model.Tenancy
 import com.santhomach.commercialledger.data.model.Tenant
@@ -22,6 +23,12 @@ class TenancyHistoryViewModel(
 
     val tenancies: StateFlow<List<Tenancy>> = repository.getTenancyHistoryForRoomFlow(roomId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // tenancyId → its payments, newest rent month first
+    val paymentsByTenancy: StateFlow<Map<Long, List<RentPayment>>> = repository
+        .getPaymentsForRoomFlow(roomId)
+        .map { list -> list.groupBy { it.tenancyId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val tenantMap: StateFlow<Map<Long, Tenant>> = tenancies.flatMapLatest { list ->
