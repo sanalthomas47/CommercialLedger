@@ -28,7 +28,8 @@ fun DatePickerField(
         label = { Text(label) },
         trailingIcon = {
             IconButton(onClick = { showPicker = true }) {
-                Icon(Icons.Default.DateRange, contentDescription = "Pick date")
+                Icon(Icons.Default.DateRange,
+                    contentDescription = "Pick date")
             }
         },
         modifier = modifier
